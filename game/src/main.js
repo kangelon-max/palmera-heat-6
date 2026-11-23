@@ -2,7 +2,7 @@
 // Third-person camera behind the hero, a living coastal city, modelled weapons,
 // swimming, police, story jobs, the ghost's money drop, the PBPD shoe trap and
 // one very large wooden man. Everything is generated in code; nothing is loaded.
-import { Atlas, Renderer, matPerspective, matLookAt, norm3 } from './gl.js';
+import { Atlas, Renderer, matPerspective, matLookAt, matMultiply, norm3 } from './gl.js';
 import { buildTextures } from './textures.js';
 import { drawPerson, drawVehicle, drawWeapon, drawGhost, drawSahur, drawHelicopter, pedAppearance, HERO_APPEARANCE } from './models.js';
 import { WORLD, buildWorld, drawWheel, districtAt, streetAt, waterDepth, collide } from './world.js';
@@ -52,8 +52,8 @@ const G = {
   stats: { carsStolen: 0, shots: 0, bills: 0, swum: 0, busted: 0, sahur: 0 },
   playtime: 0, waypoint: null, tab: 'MAP',
   dialogue: null, toast: null, prompt: null, target: null,
-  sahur: { active: false, t: 0, x: WORLD.sahurSpot.x, z: WORLD.sahurSpot.z },
-  decoyUntil: 0, hqBeatDone: false, ghostDrip: 0,
+  sahur: { active: false, t: 0, x: WORLD.sahurSpot.x, z: WORLD.sahurSpot.z, yaw: 0.8, a: 0, phase: 0, attack: null, attackT: 0, cool: 0, speedNow: 0, hitDone: false, target: null },
+  decoyUntil: 0, hqBeatDone: false, ghostDrip: 0, popups: [],
   wheelSel: 1, radioIdx: 0, started: false,
 };
 for (const d of ['Beachfront & Palmera Pier', 'Downtown', 'Port of Palmera', 'Muscle Sands', 'Observatory Hill']) G.standing[d] = 1;
@@ -166,6 +166,9 @@ function spawnTraffic() {
   }
   parked.push({ x: 96, z: -120, yaw: 0.4, kind: 'stock', tint: [0.62, 0.2, 0.16], damage: 0, wheelSpin: 0, quest: true });
   parked.push({ x: WORLD.garage.x - 8, z: WORLD.garage.z + 15, yaw: 0, kind: 'sedan', tint: [0.45, 0.4, 0.35], damage: 0, wheelSpin: 0 });
+  // nobody materialises on top of the hero's spawn point: any traffic car
+  // rolled too close starts held off-world until its lane entry is unseen
+  for (const c of cars) { const tr = trafficTransform(c); if (Math.hypot(tr.x + 30, tr.z + 96) < 60) c.active = false; }
 }
 spawnPeds(); spawnTraffic();
 const marla = { x: -30, z: -90, yaw: 2.6, app: { skin: 3, shades: false, hair: 'long', hairTint: [0.12, 0.09, 0.07], shirt: 'clothPlain', shirtTint: [0.62, 0.25, 0.3], pantsTint: [0.2, 0.2, 0.24], shorts: false } };
@@ -210,9 +213,9 @@ function phaseName(h) {
 }
 const starPts = []; { const RS = rngStream(4242); for (let i = 0; i < 220; i++) starPts.push([RS.range(-1, 1), RS.range(0.06, 1), RS.range(-1, 1)]); }
 const cloudPts = []; { const RS = rngStream(777);
-  for (let i = 0; i < 7; i++) cloudPts.push({ layer: 0, x: RS.range(-300, 300), y: RS.range(84, 110), z: RS.range(-300, 300), w: RS.range(80, 130), s: RS.range(0.6, 1) }); // high wisps
-  for (let i = 0; i < 14; i++) { const puffs = []; const n = 5 + Math.floor(RS.range(0, 4)); for (let j = 0; j < n; j++) puffs.push({ dx: RS.range(-1, 1), dy: RS.range(0, 0.55), dz: RS.range(-0.4, 0.4), w: RS.range(0.3, 0.62), h: RS.range(0.16, 0.3) }); cloudPts.push({ layer: 1, x: RS.range(-290, 290), y: RS.range(46, 62), z: RS.range(-290, 290), w: RS.range(42, 78), s: RS.range(0.7, 1.3), puffs }); } // cumulus
-  for (let i = 0; i < 6; i++) cloudPts.push({ layer: 2, x: RS.range(-290, 290), y: RS.range(48, 60), z: RS.range(-290, 290), w: RS.range(20, 38), s: RS.range(0.8, 1.4) }); // scud, raised: at 28-40 m these slabs hovered in frame like cargo containers
+  for (let i = 0; i < 10; i++) cloudPts.push({ layer: 0, x: RS.range(-300, 300), y: RS.range(84, 110), z: RS.range(-300, 300), w: RS.range(80, 130), s: RS.range(0.6, 1) }); // high wisps
+  for (let i = 0; i < 20; i++) { const puffs = []; const n = 6 + Math.floor(RS.range(0, 5)); for (let j = 0; j < n; j++) puffs.push({ dx: RS.range(-1, 1), dy: RS.range(0, 0.55), dz: RS.range(-0.4, 0.4), w: RS.range(0.3, 0.62), h: RS.range(0.16, 0.3) }); cloudPts.push({ layer: 1, x: RS.range(-290, 290), y: RS.range(46, 62), z: RS.range(-290, 290), w: RS.range(42, 78), s: RS.range(0.7, 1.3), puffs }); } // cumulus
+  for (let i = 0; i < 9; i++) cloudPts.push({ layer: 2, x: RS.range(-290, 290), y: RS.range(48, 60), z: RS.range(-290, 290), w: RS.range(20, 38), s: RS.range(0.8, 1.4) }); // scud, raised: at 28-40 m these slabs hovered in frame like cargo containers
 }
 const motes = []; { const RS = rngStream(31337); for (let i = 0; i < 150; i++) motes.push([RS.range(-16, 16), RS.range(0.2, 3.4), RS.range(-16, 16), RS.range(0, 6.28)]); }
 
@@ -345,7 +348,7 @@ function resetState() {
   h.walk = 0; h.moving = false; h.aiming = false; h.swim = false; h.wet = 0; h.car = null;
   G.stats = { carsStolen: 0, shots: 0, bills: 0, swum: 0, busted: 0, sahur: 0 };
   for (const d of Object.keys(G.standing)) G.standing[d] = 1;
-  G.sahur.active = false; G.sahur.t = 0; G.hqBeatDone = false; G.dialogue = null; G.toast = null; G.waypoint = null;
+  G.sahur.active = false; G.sahur.t = 0; G.sahur.attack = null; G.sahur.phase = 0; G.sahur.speedNow = 0; G.popups = []; G.hqBeatDone = false; G.dialogue = null; G.toast = null; G.waypoint = null;
   G.lastCrimeT = -99; G.decoyReady = 0;
   cops.length = 0; pickups.length = 0; particles.length = 0; ripples.length = 0;
   G.camYaw = 0.4; G.camPitch = 0.32;
@@ -508,7 +511,7 @@ function fire() {
     if (Math.hypot(cx - (h.x + fx * t), cz - (h.z + fz * t)) < 1.35) { bestT = t; hitCar = c; hitPed = null; }
   };
   for (const c of parked) testCar(c, c.x, c.z);
-  for (const c of cars) { const tr = trafficTransform(c); testCar(c, tr.x, tr.z); }
+  for (const c of cars) { if (c.active === false) continue; const tr = trafficTransform(c); testCar(c, tr.x, tr.z); }
   for (const c of cops) testCar(c, c.x, c.z);
   if (hitPed) { knockDown(hitPed); addHeat(0.55); }
   else if (hitCar) {
@@ -517,6 +520,41 @@ function fire() {
     addHeat(0.4);
   } else addHeat(0.16);
   if (h.ammo[w] === 0 && h.reserve[w] > 0) reloadT = 0.9;
+}
+
+// ---------- solid world: nobody passes through anything ----------
+// Push a mover {x, z} out of every building/prop AABB, sliding along faces.
+function resolveCircle(o, rad) {
+  for (const c of WORLD.colliders) {
+    const nx = clamp(o.x, c.x0, c.x1), nz = clamp(o.z, c.z0, c.z1);
+    const dx = o.x - nx, dz = o.z - nz, d2 = dx * dx + dz * dz;
+    if (d2 > rad * rad) continue;
+    if (d2 > 1e-9) { const d = Math.sqrt(d2); o.x = nx + dx / d * rad; o.z = nz + dz / d * rad; }
+    else { // centre inside the box: leave by the shallowest face
+      const pl = o.x - c.x0, pr = c.x1 - o.x, pb = o.z - c.z0, pf = c.z1 - o.z, m = Math.min(pl, pr, pb, pf);
+      if (m === pl) o.x = c.x0 - rad; else if (m === pr) o.x = c.x1 + rad; else if (m === pb) o.z = c.z0 - rad; else o.z = c.z1 + rad;
+    }
+  }
+}
+// Push a mover out of another actor's circle.
+function pushCircle(o, c, rr) {
+  const dx = o.x - c.x, dz = o.z - c.z, d2 = dx * dx + dz * dz;
+  if (d2 < rr * rr && d2 > 1e-9) { const d = Math.sqrt(d2); o.x = c.x + dx / d * rr; o.z = c.z + dz / d * rr; }
+}
+// Push a mover out of every vehicle, each car tested as three spine circles.
+function carPushOut(o, rad) {
+  const test = (cx, cz, yaw) => {
+    const fx = Math.sin(yaw), fz = Math.cos(yaw);
+    for (const t of [-1.05, 0, 1.05]) {
+      const px = cx + fx * t, pz = cz + fz * t;
+      const dx = o.x - px, dz = o.z - pz, rr = rad + 0.95, d2 = dx * dx + dz * dz;
+      if (d2 < rr * rr && d2 > 1e-9) { const d = Math.sqrt(d2); o.x = px + dx / d * rr; o.z = pz + dz / d * rr; }
+    }
+  };
+  for (const c of parked) test(c.x, c.z, c.yaw);
+  for (const c of cars) { if (c.active === false) continue; const tr = trafficTransform(c); test(tr.x, tr.z, tr.yaw); }
+  for (const c of cops) if (!c.wrecked) test(c.x, c.z, c.yaw);
+  if (G.hero.car) test(G.hero.car.x, G.hero.car.z, G.hero.car.yaw);
 }
 
 // ---------- cars: enter / exit / decoy / interact ----------
@@ -536,7 +574,7 @@ function toggleCar() {
   }
   let best = null, bd = 4.2, from = null;
   for (const c of parked) { const d = dist2(h.x, h.z, c.x, c.z); if (d < bd) { bd = d; best = c; from = 'parked'; } }
-  for (const c of cars) { const tr = trafficTransform(c); const d = dist2(h.x, h.z, tr.x, tr.z); if (d < bd) { bd = d; best = c; from = 'traffic'; } }
+  for (const c of cars) { if (c.active === false) continue; const tr = trafficTransform(c); const d = dist2(h.x, h.z, tr.x, tr.z); if (d < bd) { bd = d; best = c; from = 'traffic'; } }
   if (!best) return;
   if (from === 'parked') {
     parked.splice(parked.indexOf(best), 1);
@@ -582,10 +620,11 @@ function interact() {
 }
 function summonSahur() {
   G.sahur.active = true; G.sahur.t = 0; G.sahur.x = WORLD.sahurSpot.x; G.sahur.z = WORLD.sahurSpot.z; G.sahur.yaw = 0.8; G.sahur.a = 0;
+  G.sahur.phase = 0; G.sahur.attack = null; G.sahur.cool = 0; G.sahur.speedNow = 0;
   G.stats.sahur++;
   say('DRE', 'TUNG. TUNG. TUNG. He is awake. Walk with him — it is a respect thing.', 6.5);
   showToast('The Sahur has risen', 3);
-  if (audio.started) audio.ding();
+  if (audio.started) { audio.ding(); audio.drum(0.65); }
 }
 
 // ---------- jobs ----------
@@ -708,34 +747,85 @@ function updatePeds(dt) {
       default: break; // sit / queue / film / stand: they hold their pose
     }
   }
+  // separation: pedestrians keep personal space — nobody stands inside
+  // anybody else, nobody walks through a car, and the hero is solid too
+  for (let i = 0; i < peds.length; i++) {
+    const a = peds[i];
+    if (a.state !== 'walk' && a.state !== 'flee') continue;
+    for (let j = i + 1; j < peds.length; j++) {
+      const b = peds[j];
+      if (b.state === 'down' || b.state === 'swim' || b.state === 'sit') continue;
+      const dx = b.x - a.x, dz = b.z - a.z;
+      if (Math.abs(dx) > 0.85 || Math.abs(dz) > 0.85) continue;
+      const d2 = dx * dx + dz * dz;
+      if (d2 >= 0.72 * 0.72 || d2 < 1e-6) continue;
+      const d = Math.sqrt(d2), ux = dx / d, uz = dz / d, gap = 0.72 - d;
+      const bMobile = b.state === 'walk' || b.state === 'flee';
+      a.x -= ux * gap * (bMobile ? 0.5 : 1); a.z -= uz * gap * (bMobile ? 0.5 : 1);
+      if (bMobile) { b.x += ux * gap * 0.5; b.z += uz * gap * 0.5; }
+    }
+    pushCircle(a, h, 0.62);
+    carPushOut(a, 0.35);
+    resolveCircle(a, 0.4);
+  }
 }
 
-// ---------- traffic: lanes, braking, patience ----------
+// ---------- traffic: lanes, braking, patience, NO pop-in ----------
+// Where a car (re)enters its lane when it comes back into the world.
+function trafficEntry(c) {
+  const lo = c.vertical ? -100 : -216, hi = c.vertical ? 192 : 216;
+  const probe = { vertical: c.vertical, line: c.line, dir: c.dir, pos: c.dir > 0 ? lo : hi };
+  return trafficTransform(probe);
+}
+// Could the hero possibly SEE this spot right now? A car may only appear or
+// vanish where this says no: far away in the fog, or behind/off the camera.
+function spawnSafe(x, z) {
+  const h = G.hero;
+  const dx = x - h.x, dz = z - h.z, d = Math.hypot(dx, dz);
+  if (d < 55) return false;
+  if (d > 300) return true;
+  const fx = Math.sin(G.camYaw), fz = Math.cos(G.camYaw);
+  return (dx * fx + dz * fz) / d < 0.35;
+}
 function updateTraffic(dt) {
   const h = G.hero;
   for (const c of cars) {
+    const lo = c.vertical ? -100 : -216, hi = c.vertical ? 192 : 216;
+    if (c.active === false) {
+      // held off-world: it re-enters at its lane end only when that spot is
+      // out of the hero's sight — cars never materialise in view any more
+      const e = trafficEntry(c);
+      if (spawnSafe(e.x, e.z)) { c.pos = c.dir > 0 ? lo : hi; c.active = true; c.curSpeed = c.speed * 0.6; }
+      continue;
+    }
     const tr = trafficTransform(c);
     let want = c.speed;
-    // brake for the hero (in a car or on foot) and for the car ahead in the lane
+    // brake for anything in the corridor ahead, in world space: the hero,
+    // other traffic (same lane OR crossing at an intersection), parked cars,
+    // police and pedestrians — nobody drives through anybody
     const aheadOf = (ox, oz) => {
-      const rel = c.vertical ? (oz - tr.z) * c.dir : (ox - tr.x) * c.dir;
-      const lat = c.vertical ? Math.abs(ox - tr.x) : Math.abs(oz - tr.z);
+      const fx = c.vertical ? 0 : c.dir, fz = c.vertical ? c.dir : 0;
+      const rel = (ox - tr.x) * fx + (oz - tr.z) * fz;
+      const lat = Math.abs((ox - tr.x) * fz - (oz - tr.z) * fx);
       return rel > 0.5 && rel < 8.5 && lat < 2.3;
     };
     if (aheadOf(h.x, h.z)) want = 0;
-    for (const o of cars) {
-      if (o === c || o.line !== c.line || o.dir !== c.dir || o.vertical !== c.vertical) continue;
-      const gap = (o.pos - c.pos) * c.dir;
-      if (gap > 0.5 && gap < 9) want = 0;
-    }
-    for (const p of peds) if (p.state === 'walk' && aheadOf(p.x, p.z)) { want = 0; break; }
+    if (want) for (const o of cars) { if (o === c || o.active === false) continue; const otr = trafficTransform(o); if (aheadOf(otr.x, otr.z)) { want = 0; break; } }
+    if (want) for (const p of parked) if (aheadOf(p.x, p.z)) { want = 0; break; }
+    if (want) for (const cp of cops) if (!cp.wrecked && aheadOf(cp.x, cp.z)) { want = 0; break; }
+    if (want) for (const p of peds) if (p.state === 'walk' && aheadOf(p.x, p.z)) { want = 0; break; }
     c.targetSpeed = want;
     const cur = c.curSpeed ?? c.speed;
     c.curSpeed = cur + clamp(c.targetSpeed - cur, -14 * dt, 5 * dt);
     c.pos += c.dir * c.curSpeed * dt;
-    c.wheelSpin += c.curSpeed * dt / 0.34;
-    const lo = c.vertical ? -100 : -216, hi = c.vertical ? 192 : 216;
-    if (c.pos > hi) c.pos = lo; if (c.pos < lo) c.pos = hi;
+    c.wheelSpin += c.curSpeed * dt / 0.37;
+    if (c.pos > hi || c.pos < lo) {
+      // reached the end of its run: wrap to the far lane end ONLY if that
+      // spot is unseen, otherwise leave the world and wait off-stage
+      const e = trafficEntry(c);
+      if (spawnSafe(e.x, e.z)) c.pos = c.dir > 0 ? lo : hi;
+      else { c.active = false; c.pos = c.pos > hi ? hi : lo; }
+    }
   }
 }
 
@@ -756,7 +846,7 @@ function spawnCop(fromHQ) {
 function updatePolice(dt) {
   const h = G.hero;
   const want = G.heat > 0.05 ? Math.min(1 + Math.ceil(G.heat), 5) : 0;
-  const active = cops.filter((c) => !c.block);
+  const active = cops.filter((c) => !c.block && !c.wrecked);
   copSpawnT -= dt;
   if (active.length < want && copSpawnT <= 0) { spawnCop(R.chance(0.5)); copSpawnT = 1.1; }
   if (G.heat >= 3 && !cops.some((c) => c.block)) {
@@ -772,6 +862,10 @@ function updatePolice(dt) {
   for (let i = cops.length - 1; i >= 0; i--) {
     const c = cops[i];
     if (c.block) continue;
+    if (c.wrecked) { // a Sahur-flipped wreck: it stays where it fell, then the tow crews clear it
+      if (simT - (c.flipT || 0) > 25) cops.splice(i, 1);
+      continue;
+    }
     const d = dist2(c.x, c.z, h.x, h.z);
     if (G.heat <= 0.05 && d > 70) { cops.splice(i, 1); continue; }
     if (d < 30) nearCop = true;
@@ -784,7 +878,8 @@ function updatePolice(dt) {
     if (collide(c.x, c.z, 1.25)) c.x = ox;
     c.z += Math.cos(c.yaw) * c.speed * dt;
     if (collide(c.x, c.z, 1.25)) c.z = oz;
-    c.wheelSpin += c.speed * dt / 0.34;
+    carPushOut(c, 1.1); // units slide around parked/traffic cars instead of through them
+    c.wheelSpin += c.speed * dt / 0.37;
     if (h.car) {
       if (dist2(c.x, c.z, h.car.x, h.car.z) < 3.1 && c.speed > 4) { h.car.damage = clamp(h.car.damage + dt * 0.35, 0, 1); c.speed *= 0.94; spark(h.car.x, 0.8, h.car.z, 2); }
     } else if (d < 4.4) {
@@ -799,13 +894,18 @@ function updatePolice(dt) {
     heli.z += (h.z + Math.cos(simT * 0.23) * 12 - heli.z) * dt * 1.4;
     heli.yaw = angLerp(heli.yaw, Math.atan2(h.x - heli.x, h.z - heli.z), dt * 2);
   }
-  if (audio.started) audio.siren(cops.some((c) => !c.block) && dist2(cops[0]?.x ?? 1e9, cops[0]?.z ?? 1e9, h.x, h.z) < 60);
+  // the siren swells and quickens with the NEAREST pursuing unit's distance
+  let nearestCop = 1e9;
+  for (const c of cops) if (!c.block && !c.wrecked) nearestCop = Math.min(nearestCop, dist2(c.x, c.z, h.x, h.z));
+  const pursuing = G.heat > 0.05 && nearestCop < 1e9;
+  if (audio.started) audio.siren(pursuing, pursuing ? clamp(1.15 - nearestCop / 65, 0.12, 1) : 0);
 }
 function busted() {
   const h = G.hero;
   G.stats.busted++;
   G.money = Math.max(0, G.money - 150);
   G.heat = 0; G.bust = 0; cops.length = 0;
+  if (audio.started) { audio.engine(false, 0); audio.siren(false, 0); }
   if (h.car) { parked.push({ x: h.car.x, z: h.car.z, yaw: h.car.yaw, kind: h.car.kind, tint: h.car.tint, damage: h.car.damage, wheelSpin: 0, quest: h.car.quest }); h.car = null; }
   h.x = -30; h.z = -94; h.y = 0; h.hp = 1; h.swim = false;
   showToast('BUSTED — the PBPD thanks you for the $150 donation', 4.5);
@@ -816,6 +916,7 @@ function wasted() {
   const h = G.hero;
   G.money = Math.max(0, G.money - 100);
   G.heat = 0; G.bust = 0; cops.length = 0;
+  if (audio.started) { audio.engine(false, 0); audio.siren(false, 0); }
   if (h.car) { parked.push({ x: h.car.x, z: h.car.z, yaw: h.car.yaw, kind: h.car.kind, tint: h.car.tint, damage: h.car.damage, wheelSpin: 0, quest: h.car.quest }); h.car = null; }
   h.x = WORLD.garage.x - 6; h.z = WORLD.garage.z + 15; h.y = 0; h.hp = 1; h.ar = 0.2; h.swim = false;
   showToast('WASTED — Marla paid your clinic bill ($100)', 4.5);
@@ -854,8 +955,16 @@ function updateHero(dt) {
     h.yaw = h.aiming ? G.camYaw : angLerp(h.yaw, Math.atan2(mx, mz), dt * 11);
     const step = speed * dt;
     const nx = h.x + mx * step, nz = h.z + mz * step;
-    if (waterDepth(nx, nz) > 0.3 || h.swim || !collide(nx, h.z, 0.45)) h.x = clamp(nx, WORLD.minX + 2, WORLD.maxX - 2);
-    if (waterDepth(h.x, nz) > 0.3 || h.swim || !collide(h.x, nz, 0.45)) h.z = clamp(nz, WORLD.minZ + 2, WORLD.maxZ - 2);
+    h.x = clamp(nx, WORLD.minX + 2, WORLD.maxX - 2);
+    h.z = clamp(nz, WORLD.minZ + 2, WORLD.maxZ - 2);
+    if (!h.swim && waterDepth(h.x, h.z) <= 0.3) {
+      // solid world: slide out of buildings and props, then vehicles, then
+      // people (Marla and Dre included) — the hero passes through NOTHING
+      resolveCircle(h, 0.45);
+      carPushOut(h, 0.4);
+      for (const p of peds) { if (p.state === 'down' || p.state === 'swim') continue; pushCircle(h, p, 0.62); }
+      pushCircle(h, marla, 0.6); pushCircle(h, dre, 0.6);
+    }
     h.walk += dt * speed * (h.swim ? 2.1 : 3.2);
     if (h.swim) G.stats.swum += step;
   } else if (h.aiming) h.yaw = G.camYaw;
@@ -864,7 +973,7 @@ function updateHero(dt) {
   if (h.swim && dep2 < 0.55 && !inPier(h.x, h.z)) h.swim = false;
   if (h.swim) {
     rippleT -= dt;
-    if (rippleT <= 0 && h.moving) { ripples.push({ x: h.x, z: h.z, rad: 0.35, life: 1.5, max: 1.5 }); rippleT = 0.45; }
+    if (rippleT <= 0 && h.moving) { ripples.push({ x: h.x, z: h.z, rad: 0.35, life: 1.5, max: 1.5 }); rippleT = 0.45; if (audio.started) audio.splash(0.1); }
   }
   h.wet = h.swim ? 1 : Math.max(0, h.wet - dt * 0.04);
   const gy = groundTargetY();
@@ -903,6 +1012,14 @@ function updateDriving(dt) {
   if (collide(c.x, c.z, 1.25)) { c.z = oz; hitWall(c); }
   c.x = clamp(c.x, WORLD.minX + 3, WORLD.maxX - 3);
   c.z = clamp(c.z, WORLD.minZ + 3, WORLD.maxZ - 3);
+  // car meets car: a real impact, never a pass-through
+  const hitCar = (ox, oz) => {
+    const dx = c.x - ox, dz = c.z - oz, d = Math.hypot(dx, dz);
+    if (d < 3.3 && d > 0.01) { c.x = ox + dx / d * 3.3; c.z = oz + dz / d * 3.3; hitWall(c); }
+  };
+  for (const p of parked) hitCar(p.x, p.z);
+  for (const t of cars) { if (t.active === false) continue; const tr = trafficTransform(t); hitCar(tr.x, tr.z); }
+  for (const cp of cops) if (!cp.wrecked) hitCar(cp.x, cp.z);
   if (waterDepth(c.x, c.z) > 0.4) { c.speed -= c.speed * 3 * dt; c.damage = clamp(c.damage + dt * 0.05, 0, 1); }
   c.wheelSpin += c.speed * dt / 0.34;
   h.x = c.x; h.z = c.z; h.y = 0; h.yaw = c.yaw;
@@ -911,7 +1028,9 @@ function updateDriving(dt) {
   if (c.damage > 0.55 && R.chance(0.35)) particles.push({ kind: 'smoke', x: c.x + Math.sin(c.yaw) * 1.8, y: 1.1, z: c.z + Math.cos(c.yaw) * 1.8, vx: R.range(-0.2, 0.2), vy: R.range(0.8, 1.4), vz: R.range(-0.2, 0.2), life: 1.1, max: 1.1, rot: 0 });
   for (const p of peds) {
     if (p.state === 'down' || p.state === 'swim') continue;
-    if (Math.abs(c.speed) > 5 && dist2(c.x, c.z, p.x, p.z) < 1.7) { knockDown(p); addHeat(0.6); c.speed *= 0.82; }
+    const d = dist2(c.x, c.z, p.x, p.z);
+    if (Math.abs(c.speed) > 5 && d < 1.7) { knockDown(p); addHeat(0.6); c.speed *= 0.82; }
+    else if (d < 2.3 && p.state !== 'sit') pushCircle(p, c, 2.3); // nudged aside, never clipped through
   }
 }
 
@@ -930,13 +1049,61 @@ function updateGhostAndSahur(dt) {
   const s = G.sahur;
   if (s.active) {
     s.t += dt;
-    const tx = WORLD.sahurSpot.x + Math.cos(s.a) * 11, tz = WORLD.sahurSpot.z + Math.sin(s.a) * 8;
-    if (dist2(s.x, s.z, tx, tz) < 1.6) s.a += 0.55;
-    else {
-      s.yaw = angLerp(s.yaw, Math.atan2(tx - s.x, tz - s.z), dt * 3);
-      s.x += Math.sin(s.yaw) * 0.85 * dt; s.z += Math.cos(s.yaw) * 0.85 * dt;
+    s.cool = Math.max(0, (s.cool || 0) - dt);
+    // his quarry: the nearest standing police car
+    let cop = null, cd = 1e9;
+    for (const c of cops) { if (c.block || c.wrecked) continue; const d = dist2(s.x, s.z, c.x, c.z); if (d < cd) { cd = d; cop = c; } }
+    let speed = 0;
+    if (s.attack) {
+      // mid-swing: the hit lands halfway through, exactly on the club/kick
+      s.attackT += dt / 0.55;
+      if (!s.hitDone && s.attackT >= 0.5) {
+        s.hitDone = true;
+        const c = s.target;
+        if (c && !c.wrecked && dist2(s.x, s.z, c.x, c.z) < 8.5) {
+          c.wrecked = true; c.flipT = simT; c.flipDir = R.chance(0.5) ? 1 : -1; c.damage = 1; c.speed = 0;
+          spark(c.x, 1, c.z, 16);
+          for (let i = 0; i < 5; i++) particles.push({ kind: 'smoke', x: c.x + R.range(-1, 1), y: 0.8, z: c.z + R.range(-1, 1), vx: R.range(-0.3, 0.3), vy: R.range(0.7, 1.3), vz: R.range(-0.3, 0.3), life: 1.2, max: 1.2, rot: 0 });
+          G.money += 25; G.stats.bills++;
+          G.popups.push({ x: c.x, y: 2.4, z: c.z, text: '+$25', age: 0 });
+          showToast('The Sahur collects his toll — +$25', 2.2);
+          if (audio.started) { audio.drum(0.85); audio.crash(); }
+        }
+      }
+      if (s.attackT >= 1) { s.attack = null; s.cool = 0.5; }
+    } else if (cop && cd < 70) {
+      // he RUNS the unit down and stops at striking distance — never inside it
+      s.target = cop;
+      s.yaw = angLerp(s.yaw, Math.atan2(cop.x - s.x, cop.z - s.z), dt * (cd > 5.6 ? 4.5 : 9));
+      if (cd > 5.6) {
+        speed = 7.6;
+        const prevPhase = s.phase || 0;
+        s.phase = prevPhase + dt * speed * 0.62;
+        s.x += Math.sin(s.yaw) * speed * dt; s.z += Math.cos(s.yaw) * speed * dt;
+        resolveCircle(s, 2.0); // even a giant goes AROUND buildings
+        if (Math.floor(prevPhase / Math.PI) !== Math.floor(s.phase / Math.PI)) { // a foot just landed
+          const hd = dist2(h.x, h.z, s.x, s.z);
+          if (audio.started) audio.thud(clamp(1 - hd / 48, 0.04, 0.5));
+          particles.push({ kind: 'smoke', x: s.x, y: 0.35, z: s.z, vx: R.range(-0.3, 0.3), vy: R.range(0.4, 0.8), vz: R.range(-0.3, 0.3), life: 0.7, max: 0.7, rot: 0 });
+        }
+      } else if (s.cool <= 0) {
+        s.attack = R.chance(0.5) ? 'punch' : 'kick'; s.attackT = 0; s.hitDone = false;
+        if (audio.started) audio.drum(0.3);
+      }
+    } else {
+      // no police to punish: the gentle patrol around his stones
+      const tx = WORLD.sahurSpot.x + Math.cos(s.a) * 11, tz = WORLD.sahurSpot.z + Math.sin(s.a) * 8;
+      if (dist2(s.x, s.z, tx, tz) < 1.6) s.a += 0.55;
+      else {
+        s.yaw = angLerp(s.yaw, Math.atan2(tx - s.x, tz - s.z), dt * 3);
+        speed = 1.7;
+        s.phase = (s.phase || 0) + dt * speed * 0.55;
+        s.x += Math.sin(s.yaw) * speed * dt; s.z += Math.cos(s.yaw) * speed * dt;
+        resolveCircle(s, 2.0);
+      }
     }
-    if (s.t > 85 && G.jobIdx !== 4) s.active = false;
+    s.speedNow = speed;
+    if (s.t > 85 && G.jobIdx !== 4) { s.active = false; s.attack = null; }
   }
 }
 function updateParticles(dt) {
@@ -962,6 +1129,11 @@ function updateParticles(dt) {
     const rp = ripples[i];
     rp.life -= dt; rp.rad += dt * 1.5;
     if (rp.life <= 0) ripples.splice(i, 1);
+  }
+  for (let i = G.popups.length - 1; i >= 0; i--) {
+    const p = G.popups[i];
+    p.age += dt; p.y += dt * 1.15;
+    if (p.age > 1.15) G.popups.splice(i, 1);
   }
 }
 function computePrompt() {
@@ -1037,6 +1209,7 @@ function render() {
   G.camPos = cam.pos;
   const view = matLookAt(cam.pos, cam.at, [0, 1, 0]);
   const proj = matPerspective(1.02, glCanvas.width / glCanvas.height, 0.1, 950);
+  G._view = view; G._proj = proj; // kept so the HUD can project world popups
   renderer.beginFrame(view, proj);
   renderer.use('frame');
   drawSky(renderer, simT);
@@ -1060,6 +1233,7 @@ function drawPed(p) {
   const y = p.state === 'swim' ? -0.5 : 0;
   if (p.state !== 'swim' && p.state !== 'down') { r.push(); r.translate(p.x, 0.06, p.z); r.blobShadow(0.5, 0.5, 0.3); r.pop(); }
   r.push(); r.translate(p.x, y, p.z); r.rotateY(p.yaw);
+  if (p.app.hScale) r.scale(p.app.hScale, p.app.hScale, p.app.hScale); // no two pedestrians the same height
   if (p.state === 'down') { r.translate(0, 0.14, 0); r.rotateX(-1.45); }
   drawPerson(r, T, p.app, pedPose(p));
   r.pop();
@@ -1081,14 +1255,20 @@ function drawDynamic(nf) {
     r.push(); r.translate(c.x, 0, c.z); r.rotateY(c.yaw); drawVehicle(r, T, c.kind, { tint: c.tint, wheelSpin: c.wheelSpin || 0 }); r.pop();
   }
   for (const c of cars) {
+    if (c.active === false) continue; // off-world cars are simply not there
     const tr = trafficTransform(c);
     r.push(); r.translate(tr.x, 0.06, tr.z); r.blobShadow(1.3, 2.6, 0.34); r.pop();
-    r.push(); r.translate(tr.x, 0, tr.z); r.rotateY(tr.yaw); drawVehicle(r, T, c.kind, { tint: c.tint, wheelSpin: c.wheelSpin }); r.pop();
+    r.push(); r.translate(tr.x, 0, tr.z); r.rotateY(tr.yaw); drawVehicle(r, T, c.kind, { tint: c.tint, wheelSpin: c.wheelSpin, brake: c.targetSpeed < (c.curSpeed ?? c.speed) - 0.5 }); r.pop();
     if (night) { r.push(); r.translate(tr.x + Math.sin(tr.yaw) * 4.4, 0.1, tr.z + Math.cos(tr.yaw) * 4.4); r.groundQuad(5.5, 7, T.glow, [1.1, 1.05, 0.85], 0.35 * nf); r.pop(); }
   }
   for (const c of cops) {
     r.push(); r.translate(c.x, 0.06, c.z); r.blobShadow(1.3, 2.6, 0.34); r.pop();
-    r.push(); r.translate(c.x, 0, c.z); r.rotateY(c.yaw); drawVehicle(r, T, 'cop', { tint: [0.93, 0.94, 0.96], wheelSpin: c.wheelSpin, lightPhase: Math.floor(simT * 2.4 + (c.lightSeed || 0)) % 2 }); r.pop();
+    r.push(); r.translate(c.x, 0, c.z); r.rotateY(c.yaw);
+    if (c.flipT != null) { // Sahur-flipped: a barrel roll onto the roof, then it stays a wreck
+      const fp = clamp((simT - c.flipT) / 0.85, 0, 1);
+      r.translate(0, 0.55 + Math.sin(fp * Math.PI) * 0.85, 0); r.rotateZ((c.flipDir || 1) * fp * Math.PI); r.translate(0, -0.55, 0);
+    }
+    drawVehicle(r, T, 'cop', { tint: [0.93, 0.94, 0.96], wheelSpin: c.wheelSpin, lightPhase: Math.floor(simT * 2.4 + (c.lightSeed || 0)) % 2 }); r.pop();
   }
   r.push(); r.translate(WORLD.ghost.x, 0, WORLD.ghost.z); drawGhost(r, T, simT); r.pop();
   r.push(); r.translate(WORLD.ghost.x, 1.25, WORLD.ghost.z + 0.55); r.billboard(2.2 + Math.sin(simT * 2.4) * 0.25, T.glow, [0.95, 0.35, 0.62], 0.26); r.pop();
@@ -1098,8 +1278,10 @@ function drawDynamic(nf) {
   r.push(); r.translate(dre.x, 0.06, dre.z); r.blobShadow(0.55, 0.55, 0.32); r.pop();
   r.push(); r.translate(dre.x, 0, dre.z); r.rotateY(dre.yaw); drawPerson(r, T, dre.app, { walk: 0 }); r.pop();
   if (G.sahur.active) {
-    r.push(); r.translate(G.sahur.x, 0.07, G.sahur.z); r.blobShadow(2.7, 2.7, 0.4); r.pop();
-    r.push(); r.translate(G.sahur.x, 0, G.sahur.z); r.rotateY(G.sahur.yaw || 0); drawSahur(r, T, simT); r.pop();
+    r.push(); r.translate(G.sahur.x, 0.07, G.sahur.z); r.blobShadow(3.6, 3.6, 0.42); r.pop();
+    r.push(); r.translate(G.sahur.x, 0, G.sahur.z); r.rotateY(G.sahur.yaw || 0);
+    drawSahur(r, T, simT, { phase: G.sahur.phase || 0, run: (G.sahur.speedNow || 0) > 3 ? 1 : (G.sahur.speedNow || 0) > 0.3 ? 0.45 : 0, attack: G.sahur.attack, attackT: G.sahur.attackT || 0 });
+    r.pop();
   }
   if (h.car) {
     const c = h.car;
@@ -1188,6 +1370,20 @@ function stageObjective() {
   }
   return '';
 }
+// Project the floating world popups (e.g. the Sahur's "+$25") to screen
+// space with the last rendered frame's matrices.
+function popupScreen() {
+  if (!G._view || !G.popups.length) return [];
+  const M = matMultiply(G._proj, G._view), out = [];
+  for (const p of G.popups) {
+    const cw = M[3] * p.x + M[7] * p.y + M[11] * p.z + M[15];
+    if (cw <= 0.1) continue;
+    const cx = M[0] * p.x + M[4] * p.y + M[8] * p.z + M[12];
+    const cy = M[1] * p.x + M[5] * p.y + M[9] * p.z + M[13];
+    out.push({ sx: (cx / cw * 0.5 + 0.5) * glCanvas.width, sy: (1 - (cy / cw * 0.5 + 0.5)) * glCanvas.height, text: p.text, a: clamp(1 - p.age / 1.15, 0, 1) });
+  }
+  return out;
+}
 function hudState() {
   const h = G.hero;
   const district = districtAt(h.x, h.z);
@@ -1206,6 +1402,7 @@ function hudState() {
     damage: h.car ? h.car.damage : 0,
     radio: audio.started ? audio.trackName() : STATIONS[G.radioIdx].name + ' · ' + STATIONS[G.radioIdx].tracks[0],
     prompt: G.prompt, toast: G.toast && simT < G.toast.until ? G.toast.text : null,
+    popups: popupScreen(),
     crosshair: h.aiming && !h.car,
     player: { x: h.x, z: h.z, yaw: h.car ? h.car.yaw : h.yaw },
     street: streetAt(h.x, h.z), district, standing: G.standing[district] ?? 1,
@@ -1268,6 +1465,51 @@ function stageShot(name) {
     ripples.push({ x: h.x, z: h.z, rad: 1.1, life: 99, max: 99 });
     ripples.push({ x: h.x + 0.8, z: h.z + 0.6, rad: 1.9, life: 99, max: 99 });
     ripples.push({ x: h.x - 0.7, z: h.z - 0.5, rad: 2.6, life: 99, max: 99 });
+  } else if (name === 'sahur') {
+    G.time = 10.4;
+    // The giant mid-smash: club just landed, the interceptor mid-barrel-roll
+    // onto its roof at striking distance, hero watching from street level so
+    // the 19 m scale against the buildings is unmistakable.
+    const sx = WORLD.sahurSpot.x, sz = WORLD.sahurSpot.z;
+    G.sahur.active = true; G.sahur.x = sx; G.sahur.z = sz; G.sahur.yaw = Math.atan2(4.6, 3.4);
+    G.sahur.phase = 2.4; G.sahur.speedNow = 0; G.sahur.attack = 'punch'; G.sahur.attackT = 0.58;
+    cops.push({ block: false, x: sx + 4.6, z: sz + 3.4, yaw: 2.25, speed: 0, wheelSpin: 0, damage: 0.85, lightSeed: 1, wrecked: true, flipT: simT - 0.3, flipDir: -1 });
+    G.heat = 3;
+    // hero southeast of the giant: front three-quarter view of the smash,
+    // the interceptor tumbling between him and the camera
+    h.x = sx + 24; h.z = sz + 19; h.yaw = Math.atan2(sx - h.x, sz - h.z); h.weapon = 'rifle';
+    G.camYaw = h.yaw; G.camPitch = -0.28; // tilted up: all 19 m of him fits the frame
+    G.money = 640; G.rp = 300;
+  } else if (name === 'street') {
+    G.time = 10.8;
+    // Palm Row close-up: the new sports fleet parked along the avenue, a
+    // PBPD interceptor among them, pedestrians mid-stride on the sidewalks.
+    h.x = 16; h.z = 30; h.yaw = Math.PI; h.weapon = 'pistol'; h.walk = 1.4;
+    G.camYaw = Math.PI; G.camPitch = 0.3;
+    parked[0].x = 11.2; parked[0].z = 18; parked[0].yaw = 0; parked[0].kind = 'sedan'; parked[0].tint = [0.62, 0.2, 0.16];
+    parked[1].x = 21.5; parked[1].z = 40; parked[1].yaw = Math.PI; parked[1].kind = 'taxi'; parked[1].tint = [0.95, 0.75, 0.25];
+    parked[2].x = 11.2; parked[2].z = 6; parked[2].yaw = 0; parked[2].kind = 'stock'; parked[2].tint = [0.62, 0.2, 0.16];
+    cops.push({ block: true, x: 22.5, z: 20, yaw: 0.15, speed: 0, wheelSpin: 0, damage: 0, lightSeed: 0 });
+    const spots = [[13.2, 24, 0.3, 1.2], [18.8, 26, 2.8, 3.4], [13.6, 35, -0.4, 4.6], [19.2, 37, 3.6, 0.4]];
+    spots.forEach(([px, pz, pyaw, pw], i) => { const p = peds[i]; p.x = px; p.z = pz; p.yaw = pyaw; p.walk = pw; p.state = 'walk'; p.pauseT = 0; });
+    G.money = 860; G.rp = 240;
+  } else if (name === 'collide') {
+    G.time = 11.4;
+    // Collision proof: the hero's nose on the garage's plain north wall
+    // (face at z = 37, stopped by the collider, not inside it) and a
+    // conversational cluster on the apron, everyone in their own space.
+    h.x = 88; h.z = 36.45; h.yaw = 0; h.walk = 0;
+    G.camYaw = 0; G.camPitch = 0.3;
+    const spots = [[82.5, 34, 0.8], [85, 35.1, 2.6], [91.5, 34.2, -1.2], [94, 35.2, 1.9], [79.5, 35, 3.1]];
+    spots.forEach(([px, pz, pyaw], i) => { const p = peds[10 + i]; p.x = px; p.z = pz; p.yaw = pyaw; p.walk = 0; p.state = 'stand'; p.pauseT = 9; });
+    G.money = 300; G.rp = 120;
+  } else if (name === 'map') {
+    G.time = 10.6;
+    // Map-arrow proof: the hero walks NORTH up Palm Row (toward the water);
+    // the minimap arrow must point UP-map, the way he is actually moving.
+    h.x = 16; h.z = 44; h.yaw = Math.PI; h.walk = 2.4; h.moving = true;
+    G.camYaw = Math.PI; G.camPitch = 0.32;
+    G.money = 860; G.rp = 240;
   }
 }
 

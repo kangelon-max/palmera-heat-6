@@ -165,8 +165,11 @@ export class HUD {
     dot(WORLD.sahurSpot.x, WORLD.sahurSpot.z, 'S', '#8a6a3a');
     if (S.target) dot(S.target.x, S.target.z, '!', '#c9403a');
     { const [a, b] = proj(WORLD.hq.x, WORLD.hq.z); if (a > cx && a < cx + size && b > cy && b < cy + size) drawHeel(ctx, a, b, 15); }
-    // player arrow
-    ctx.translate(cx + size / 2, cy + size / 2); ctx.rotate(-S.player.yaw);
+    // player arrow. The map plots world +z downward on screen while the
+    // hero's heading is (sin yaw, cos yaw), so the up-drawn arrow must be
+    // rotated by PI - yaw: yaw 0 (heading +z, south) points down-map, yaw PI
+    // (heading -z, north) points up-map — exactly the direction of travel.
+    ctx.translate(cx + size / 2, cy + size / 2); ctx.rotate(Math.PI - S.player.yaw);
     ctx.beginPath(); ctx.moveTo(0, -8); ctx.lineTo(5.4, 6); ctx.lineTo(0, 3); ctx.lineTo(-5.4, 6); ctx.closePath();
     ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.stroke();
     ctx.restore();
@@ -241,6 +244,16 @@ export class HUD {
       panel(ctx, W / 2 - w / 2, 70, Math.max(w, 240), 36);
       txt(ctx, S.toast, W / 2, 93, 'bold 13.5px sans-serif', '#ffd489', 'center');
     }
+    // floating world popups (projected by the main loop, e.g. Sahur "+$25")
+    if (S.popups) for (const p of S.popups) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, p.a * 1.7));
+      ctx.font = 'bold 19px sans-serif'; ctx.textAlign = 'center';
+      ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(10,10,8,0.75)';
+      ctx.strokeText(p.text, p.sx, p.sy);
+      ctx.fillStyle = '#8fd48a'; ctx.fillText(p.text, p.sx, p.sy);
+      ctx.restore();
+    }
     if (S.crosshair) {
       ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.6;
       ctx.beginPath(); ctx.arc(W / 2, H / 2, 3, 0, 7); ctx.stroke();
@@ -300,7 +313,14 @@ export class HUD {
       { const [a, b] = P(WORLD.ghost.x, WORLD.ghost.z); marker(ctx, a, b, 'G', '#c23a7d'); }
       { const [a, b] = P(WORLD.garage.x, WORLD.garage.z); marker(ctx, a, b, 'H', '#3f7d5a'); }
       { const [a, b] = P(WORLD.sahurSpot.x, WORLD.sahurSpot.z); marker(ctx, a, b, 'S', '#8a6a3a'); }
-      { const [a, b] = P(S.player.x, S.player.z); ctx.beginPath(); ctx.arc(a, b, 5, 0, 7); ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#111'; ctx.stroke(); }
+      { const [a, b] = P(S.player.x, S.player.z);
+        // heading arrow, same convention as the minimap: the map plots +z
+        // downward, so rotate the up-drawn arrow by PI - yaw.
+        ctx.save(); ctx.translate(a, b); ctx.rotate(Math.PI - S.player.yaw);
+        ctx.beginPath(); ctx.moveTo(0, -10); ctx.lineTo(6.6, 7); ctx.lineTo(0, 3.6); ctx.lineTo(-6.6, 7); ctx.closePath();
+        ctx.fillStyle = '#fff'; ctx.fill(); ctx.strokeStyle = '#111'; ctx.stroke();
+        ctx.restore();
+        ctx.beginPath(); ctx.arc(a, b, 2.2, 0, 7); ctx.fillStyle = '#111'; ctx.fill(); }
       if (S.target) { const [a, b] = P(S.target.x, S.target.z); marker(ctx, a, b, '!', '#c9403a'); }
       if (S.waypoint) { const [a, b] = P(S.waypoint.x, S.waypoint.z); ctx.strokeStyle = GOLD; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(a, b, 9, 0, 7); ctx.stroke(); }
       const lx = 48 + size + 28;

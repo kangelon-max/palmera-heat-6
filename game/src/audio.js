@@ -72,21 +72,52 @@ export class AudioEngine {
     else if (kind === 'rifle') { this.noise(0.12, 2400, this.sfxGain, 0.6); this.tone(140, 0.08, 'square', this.sfxGain, 0.3); }
     else { this.noise(0.09, 3200, this.sfxGain, 0.5); this.tone(180, 0.06, 'square', this.sfxGain, 0.25); }
   }
-  splash() { this.noise(0.35, 700, this.sfxGain, 0.35); }
+  splash(vol = 0.35) { this.noise(0.35, 700, this.sfxGain, vol); }
+  /** Kentongan slit-drum knock — the Sahur's war drum. */
+  drum(vol = 0.5) {
+    if (!this.started) return;
+    this.tone(170, 0.13, 'square', this.sfxGain, vol * 0.5);
+    this.tone(82, 0.2, 'sine', this.sfxGain, vol * 0.65);
+    this.noise(0.09, 650, this.sfxGain, vol * 0.4);
+  }
+  /** A giant footfall: felt more than heard, scaled by distance at the call site. */
+  thud(vol = 0.3) {
+    if (!this.started) return;
+    this.tone(52, 0.12, 'sine', this.sfxGain, vol);
+    this.noise(0.08, 220, this.sfxGain, vol * 0.7);
+  }
+  /** Metal giving way — a car being flipped. */
+  crash() {
+    if (!this.started) return;
+    this.noise(0.32, 1700, this.sfxGain, 0.5);
+    this.noise(0.5, 480, this.sfxGain, 0.32);
+    this.tone(64, 0.3, 'square', this.sfxGain, 0.3);
+  }
   cash() { if (!this.started) return; this.tone(1320, 0.09, 'square', this.sfxGain, 0.16); setTimeout(() => this.tone(1760, 0.14, 'square', this.sfxGain, 0.16), 55); }
   click() { this.tone(660, 0.05, 'square', this.sfxGain, 0.2); }
   ding() { this.tone(880, 0.18, 'sine', this.sfxGain, 0.3); this.tone(1174, 0.3, 'sine', this.sfxGain, 0.22); }
-  siren(on) {
+  /** Police siren: a wail that swells and quickens (toward a yelp) as the
+   *  nearest unit closes in. `level` is 0..1 proximity, set by the caller
+   *  from the nearest pursuing cop's distance every frame. */
+  siren(on, level = 0.6) {
     if (!this.started) return;
-    if (on && !this.sirenOsc) {
-      const ctx = this.ctx, o = ctx.createOscillator(), g = ctx.createGain(), lfo = ctx.createOscillator(), lg = ctx.createGain();
-      o.type = 'triangle'; o.frequency.value = 720; g.gain.value = 0.035;
-      lfo.frequency.value = 0.7; lg.gain.value = 160; lfo.connect(lg); lg.connect(o.frequency);
-      o.connect(g); g.connect(this.master); o.start(); lfo.start();
-      this.sirenOsc = { o, lfo, g };
-    } else if (!on && this.sirenOsc) {
-      try { this.sirenOsc.o.stop(); this.sirenOsc.lfo.stop(); } catch { /* already stopped */ }
-      this.sirenOsc = null;
+    const ctx = this.ctx, t = ctx.currentTime;
+    if (on) {
+      if (!this.sirenOsc) {
+        const o = ctx.createOscillator(), g = ctx.createGain(), lfo = ctx.createOscillator(), lg = ctx.createGain();
+        o.type = 'triangle'; o.frequency.value = 720; g.gain.value = 0.0001;
+        lfo.type = 'sine'; lfo.frequency.value = 0.6; lg.gain.value = 190; lfo.connect(lg); lg.connect(o.frequency);
+        o.connect(g); g.connect(this.master); o.start(); lfo.start();
+        this.sirenOsc = { o, lfo, g };
+      }
+      const s = this.sirenOsc;
+      s.g.gain.setTargetAtTime(0.025 + level * 0.21, t, 0.12);
+      s.lfo.frequency.setTargetAtTime(0.55 + level * 1.15, t, 0.25);
+      s.o.frequency.setTargetAtTime(715 + level * 55, t, 0.25);
+    } else if (this.sirenOsc) {
+      const s = this.sirenOsc; this.sirenOsc = null;
+      s.g.gain.setTargetAtTime(0.0001, t, 0.07);
+      setTimeout(() => { try { s.o.stop(); s.lfo.stop(); } catch { /* already stopped */ } }, 260);
     }
   }
   engine(on, speedFrac) {

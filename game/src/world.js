@@ -72,8 +72,19 @@ function buildBuilding(r, T, R, cx, cz, w, d, h, style, opts = {}) {
   const tile = T[`facade_${style}${R.int(0, 1)}`];
   const tint = opts.tint || [R.range(0.82, 1.05), R.range(0.82, 1.02), R.range(0.8, 1.0)];
   r.push(); r.translate(cx, 0, cz); if (opts.rotY) r.rotateY(opts.rotY);
-  r.push(); r.translate(0, h / 2, 0); r.box(w, h, d, { tile }, tint); r.pop();
-  r.push(); r.translate(0, h + 0.22, 0); r.box(w + 0.7, 0.44, d + 0.7, { tile: T.roof }, [0.9, 0.88, 0.85]); r.pop(); // parapet
+  // tall blocks step back: a full-footprint shaft, a cornice band, then a
+  // narrower crown tier — skylines stop reading as one extruded box
+  const tiered = h >= 15 && !opts.sign;
+  const h1 = tiered ? h * 0.62 : h;
+  r.push(); r.translate(0, h1 / 2, 0); r.box(w, h1, d, { tile }, tint); r.pop();
+  if (tiered) {
+    r.push(); r.translate(0, h1 + 0.16, 0); r.box(w + 0.55, 0.32, d + 0.55, { tile: T.concrete }, [0.92, 0.9, 0.86]); r.pop(); // cornice
+    r.push(); r.translate(0, h1 + (h - h1) / 2, 0); r.box(w * 0.78, h - h1, d * 0.78, { tile }, tint.map((v) => v * 1.04)); r.pop(); // crown tier
+  }
+  r.push(); r.translate(0, h + 0.22, 0); r.box((tiered ? w * 0.78 : w) + 0.7, 0.44, (tiered ? d * 0.78 : d) + 0.7, { tile: T.roof }, [0.9, 0.88, 0.85]); r.pop(); // parapet
+  if (!tiered && h < 13 && R.chance(0.22)) { // a gabled roofline on some low blocks
+    r.push(); r.translate(0, h + 0.4, 0); r.rotateY(R.chance(0.5) ? 0 : Math.PI / 2); r.wedge(w * 0.92, R.range(1.1, 1.9), d * 0.92, { tile: T.roof }, [0.85, 0.6, 0.5]); r.pop();
+  }
   if (opts.shop) { // ground-floor shopfront band on the street face
     r.push(); r.translate(0, 1.7, d / 2 + 0.06); r.box(w * 0.94, 3.4, 0.12, { tile: T.shopfront }); r.pop();
     r.push(); r.translate(0, 3.62, d / 2 + 0.55); r.rotateX(0.5); r.box(w * 0.8, 0.08, 1.3, { tile: R.chance(0.5) ? T.awning : T.awningRed }); r.pop();
@@ -83,7 +94,7 @@ function buildBuilding(r, T, R, cx, cz, w, d, h, style, opts = {}) {
     r.translate(0, 0, 0.28); r.plane(opts.signW || 12, 1.8, T[opts.sign], [1, 1, 1], 0.35); r.pop();
   }
   if (opts.balconies) {
-    const floors = Math.max(1, Math.floor(h / 3.4) - 1);
+    const floors = Math.max(1, Math.floor(h1 / 3.4) - 1); // balconies live on the shaft, never floating off the crown
     for (let f = 0; f < floors; f++) for (let i = -1; i <= 1; i++) {
       r.push(); r.translate(i * w * 0.28, 3.4 + f * 3.4, d / 2 + 0.5);
       r.box(2.6, 0.14, 1.0, { tile: T.concrete }, [0.85, 0.84, 0.8]);
@@ -98,7 +109,7 @@ function buildBuilding(r, T, R, cx, cz, w, d, h, style, opts = {}) {
     else r.box(R.range(1, 2), 1.1, R.range(1, 1.8), { tile: T.corrugated }, [0.8, 0.79, 0.76]);
     r.pop();
   }
-  r.push(); r.translate(w / 2 - 0.2, h / 2, d / 2 - 0.2); r.cylinder(0.09, h, 6, { tile: T.gunMetal }, [0.5, 0.5, 0.52]); r.pop(); // drainpipe
+  r.push(); r.translate(w / 2 - 0.2, h1 / 2, d / 2 - 0.2); r.cylinder(0.09, h1, 6, { tile: T.gunMetal }, [0.5, 0.5, 0.52]); r.pop(); // drainpipe (shaft height, so it hugs the stepped face)
   r.pop();
   WORLD.colliders.push({ x0: cx - w / 2, z0: cz - d / 2, x1: cx + w / 2, z1: cz + d / 2 });
 }

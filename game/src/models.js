@@ -44,30 +44,33 @@ export function drawPerson(r, T, o, pose = {}) {
     if (pose.sit) r.rotateX(-1.5);
     else if (pose.swim) r.rotateX(Math.sin(walk + (side > 0 ? Math.PI : 0)) * 0.5); // flutter kick
     else r.rotateX(swing * (side > 0 ? 1 : -1));
-    limb(r, 0.48, 0.145, 0.16, pantsM, o.pantsTint);
+    limb(r, 0.48, 0.155, 0.17, pantsM, o.pantsTint);
     r.translate(0, -0.48, 0);
     if (pose.sit) r.rotateX(1.5);
     else if (!pose.swim) r.rotateX(Math.max(0, -Math.sin(walk + (side > 0 ? 0 : Math.PI))) * 0.5);
-    if (o.shorts) limb(r, 0.44, 0.115, 0.125, { tile: skin }, SKIN_TINTS[o.skin]);
-    else limb(r, 0.44, 0.125, 0.135, pantsM, o.pantsTint);
+    if (o.shorts) limb(r, 0.44, 0.11, 0.12, { tile: skin }, SKIN_TINTS[o.skin]);
+    else limb(r, 0.44, 0.12, 0.13, pantsM, o.pantsTint);
     r.translate(0, -0.44, 0.02);
     r.box(0.11, 0.07, 0.24, { tile: T.white }, o.shoeTint || [0.2, 0.19, 0.2]); // shoe
     r.pop();
   }
 
-  // ---- torso ----
+  // ---- torso: stacked masses so the silhouette tapers (hips -> narrow
+  // waist -> chest -> shoulders) instead of reading as one crate ----
   r.push();
   r.translate(0, 0.98, 0);
   if (pose.lean) r.rotateX(pose.lean);
-  r.push(); r.translate(0, 0.27, 0); r.box(0.44, 0.56, 0.24, shirtM, o.shirtTint); r.pop(); // chest
-  r.push(); r.translate(0, 0.52, 0); r.box(0.45, 0.07, 0.25, shirtM, o.shirtTint); r.pop(); // shoulders
-  r.push(); r.translate(0, 0.02, 0); r.box(0.4, 0.06, 0.22, { tile: T.white }, [0.16, 0.13, 0.1]); r.pop(); // belt
+  r.push(); r.translate(0, 0.05, 0); r.box(0.4, 0.17, 0.23, pantsM, o.pantsTint); r.pop(); // hips
+  r.push(); r.translate(0, 0.22, 0); r.box(0.385, 0.2, 0.215, shirtM, o.shirtTint); r.pop(); // waist
+  r.push(); r.translate(0, 0.42, 0); r.box(0.46, 0.26, 0.25, shirtM, o.shirtTint); r.pop(); // chest
+  r.push(); r.translate(0, 0.585, 0); r.box(0.5, 0.09, 0.26, shirtM, o.shirtTint); r.pop(); // shoulders
+  r.push(); r.translate(0, -0.03, 0); r.box(0.4, 0.06, 0.22, { tile: T.white }, [0.16, 0.13, 0.1]); r.pop(); // belt
 
   // ---- arms + weapon ----
   const aim = pose.aim, carry = pose.carry && pose.weapon && !pose.swim; // a swimmer's arms crawl-stroke; the weapon stays holstered
   for (const side of [-1, 1]) {
     r.push();
-    r.translate(side * 0.27, 0.5, 0);
+    r.translate(side * 0.28, 0.52, 0);
     if (pose.armsUp) { r.rotateZ(side * -2.6); r.rotateX(Math.sin(walk * 0.5 + side) * 0.14); }
     else if (aim) { r.rotateX(-1.32 + (pose.aimPitch || 0)); r.rotateY(side * -0.16); }
     else if (carry) { r.rotateX(side > 0 ? -0.62 : -0.95); r.rotateZ(side * 0.18); }
@@ -110,7 +113,7 @@ export function drawPerson(r, T, o, pose = {}) {
 
   // ---- head ----
   r.push();
-  r.translate(0, 0.56, 0);
+  r.translate(0, 0.58, 0);
   r.push(); r.translate(0, 0.045, 0); r.box(0.13, 0.09, 0.13, { tile: skin }, SKIN_TINTS[o.skin]); r.pop(); // neck
   r.translate(0, 0.21, 0);
   const headMat = { front: face, back: T.hairTile, left: skin, right: skin, top: T.hairTile, bottom: skin };
@@ -142,6 +145,7 @@ export function pedAppearance(R) {
     shirtTint: R.pick(SHIRT_TINTS),
     pantsTint: R.pick(PANTS_TINTS),
     shorts: R.chance(0.4),
+    hScale: R.range(0.94, 1.06),
     bag: R.chance(0.22),
     coffee: R.chance(0.14),
     phone: R.chance(0.16),
@@ -301,58 +305,75 @@ export function drawVehicle(r, T, kind, o = {}) {
   } else {
     const flank = kind === 'taxi' ? T.carFlankTaxi : kind === 'stock' ? T.carFlankStock : T.carFlank;
     const bodyMat = { front: T.white, back: T.white, left: flank, right: flank, top: T.white, bottom: T.white };
-    r.push(); r.translate(0, 0.52, 0); r.box(Wd, 0.62, L, bodyMat, tint); r.pop(); // body: panelled flanks, door seams + handles
-    r.push(); r.translate(0, 0.86, 0); r.box(Wd, 0.06, L * 0.96, paint, tint.map((v) => v * 1.06)); r.pop(); // shoulder line
-    const cabinMat = { front: T.windshield, back: T.carGlass, left: T.cabinSide, right: T.cabinSide, top: T.carGlass, bottom: T.carGlass };
-    if (kind === 'pickup') {
-      r.push(); r.translate(0, 1.05, 0.95); r.box(Wd * 0.92, 0.55, 1.6, cabinMat, [1, 1, 1]); r.pop(); // cab with interior
-      r.push(); r.translate(0, 1.32, 0.95); r.box(Wd * 0.96, 0.07, 1.7, paint, tint); r.pop();
-      const bedTint = tint.map((v) => v * 0.92); // open bed: floor, walls, tailgate
-      r.push(); r.translate(0, 0.8, -1.35); r.box(Wd * 0.94, 0.08, 1.9, { tile: T.white }, [0.2, 0.2, 0.22]); r.pop();
-      for (const sx of [-1, 1]) { r.push(); r.translate(sx * (Wd * 0.47 - 0.045), 1.02, -1.35); r.box(0.09, 0.5, 1.9, paint, bedTint); r.pop(); }
-      r.push(); r.translate(0, 1.02, -2.28); r.box(Wd * 0.94, 0.5, 0.09, paint, bedTint); r.pop();
-    } else {
-      r.push(); r.translate(0, 1.06, -0.15); r.box(Wd * 0.88, 0.52, L * 0.48, cabinMat, [1, 1, 1]); r.pop(); // cabin: windshield + interior glass
-      r.push(); r.translate(0, 1.34, -0.15); r.box(Wd * 0.92, 0.06, L * 0.52, paint, tint); r.pop(); // roof
-      for (const px of [-Wd * 0.4, Wd * 0.4]) { r.push(); r.translate(px, 1.06, 0.85); r.box(0.09, 0.5, 0.09, paint, tint); r.pop(); } // A pillars hint
-      for (const px of [-Wd * 0.4, Wd * 0.4]) { r.push(); r.translate(px, 1.06, -1.12); r.box(0.09, 0.5, 0.09, paint, tint); r.pop(); } // C pillars hint
-    }
-    wheel(-Wd / 2, L / 2 - 0.75); wheel(Wd / 2, L / 2 - 0.75); wheel(-Wd / 2, -L / 2 + 0.75); wheel(Wd / 2, -L / 2 + 0.75);
-    // lights + plates
+    const glassM = { tile: T.carGlass };
+    const darkM = { tile: T.white };
+    const dark = [0.13, 0.13, 0.15];
+    const W = 1.88; // the whole fleet wears a sports-coupe shell now: low, wide, planted
+    // ---- hull: low main body, hood wedging down to a sharp nose ----
+    r.push(); r.translate(0, 0.46, -0.42); r.box(W, 0.56, L - 0.85, bodyMat, tint); r.pop(); // main hull, panelled flanks
+    r.push(); r.translate(0, 0.44, L / 2 - 0.44); r.wedge(W * 0.97, 0.33, 0.92, paint, tint); r.pop(); // sloped hood
+    r.push(); r.translate(0, 0.3, L / 2 + 0.03); r.box(W * 0.96, 0.3, 0.16, darkM, dark); r.pop(); // front intake
+    r.push(); r.translate(0, 0.1, L / 2 + 0.08); r.box(W * 1.0, 0.07, 0.42, darkM, dark); r.pop(); // splitter
     for (const sx of [-1, 1]) {
-      r.push(); r.translate(sx * Wd * 0.32, 0.62, L / 2 + 0.012); r.box(0.34, 0.13, 0.02, { tile: T.white }, [1.5, 1.45, 1.2], 0.35); r.pop(); // headlight lens
-      r.push(); r.translate(sx * Wd * 0.46, 0.62, L / 2 + 0.012); r.box(0.11, 0.1, 0.02, { tile: T.white }, [1.4, 0.9, 0.3], 0.3); r.pop(); // indicator
-      r.push(); r.translate(sx * Wd * 0.32, 0.62, -L / 2 - 0.012); r.box(0.34, 0.12, 0.02, { tile: T.white }, [1.1, 0.25, 0.2], 0.3); r.pop(); // taillight lens
-      r.push(); r.translate(sx * (Wd / 2 + 0.05), 0.95, 0.75); r.box(0.05, 0.1, 0.16, paint, tint); r.pop(); // mirrors
-      r.push(); r.translate(sx * 0.14, 0.68, -L / 2 - 0.05); r.cylinder(0.035, 0.12, 6, { tile: T.gunMetal }); r.pop(); // exhaust
+      r.push(); r.translate(sx * W * 0.28, 0.56, L / 2 + 0.1); r.box(0.54, 0.07, 0.05, { tile: T.white }, [1.6, 1.55, 1.35], 0.55); r.pop(); // slim LED headlights
+      for (const wz of [L / 2 - 0.85, -L / 2 + 0.85]) { r.push(); r.translate(sx * (W / 2 + 0.02), 0.52, wz); r.box(0.09, 0.36, 1.06, paint, tint.map((v) => v * 0.92)); r.pop(); } // fender flares
+      r.push(); r.translate(sx * (W / 2 + 0.01), 0.19, -0.2); r.box(0.05, 0.15, 2.1, darkM, dark); r.pop(); // side skirt
+      r.push(); r.translate(sx * (W / 2 + 0.005), 0.52, -1.18); r.box(0.04, 0.2, 0.52, darkM, dark); r.pop(); // rear intake scoop
+      r.push(); r.translate(sx * (W / 2 + 0.07), 1.02, 0.28); r.box(0.05, 0.09, 0.2, paint, tint); r.pop(); // mirror
     }
-    r.push(); r.translate(0, 0.42, L / 2 + 0.015); r.plane(0.52, 0.13, T.plate1); r.pop();
-    r.push(); r.translate(0, 0.42, -L / 2 - 0.015); r.rotateY(Math.PI); r.plane(0.52, 0.13, T.plate2); r.pop();
-    // bumpers, grille, side skirts, antenna
-    r.push(); r.translate(0, 0.3, L / 2 + 0.07); r.box(Wd * 1.01, 0.2, 0.24, { tile: T.white }, [0.16, 0.16, 0.18]); r.pop(); // front bumper
-    r.push(); r.translate(0, 0.3, -L / 2 - 0.07); r.box(Wd * 1.01, 0.2, 0.24, { tile: T.white }, [0.16, 0.16, 0.18]); r.pop(); // rear bumper
-    r.push(); r.translate(0, 0.56, L / 2 + 0.015); r.plane(0.95, 0.2, T.grille); r.pop(); // grille
-    for (const sx of [-1, 1]) { r.push(); r.translate(sx * (Wd / 2 + 0.012), 0.22, 0); r.box(0.05, 0.13, L * 0.5, { tile: T.white }, [0.14, 0.14, 0.16]); r.pop(); } // side skirts
-    r.push(); r.translate(Wd * 0.3, 1.62, -L * 0.32); r.cylinder(0.011, 0.52, 5, { tile: T.gunMetal }, [0.4, 0.4, 0.42]); r.pop(); // antenna
+    // low-profile sports wheels on spoked hubs
+    const wheelS = (x, z) => { r.push(); r.translate(x, 0.37, z); r.rotateZ(Math.PI / 2); r.rotateY(spin); r.cylinder(0.37, 0.27, 14, { tile: T.tire }, [1, 1, 1], 0, T.hub); r.pop(); };
+    wheelS(-W / 2 - 0.01, L / 2 - 0.85); wheelS(W / 2 + 0.01, L / 2 - 0.85); wheelS(-W / 2 - 0.01, -L / 2 + 0.85); wheelS(W / 2 + 0.01, -L / 2 + 0.85);
+    if (kind === 'pickup') {
+      // sporty pickup: same low nose, cab raked forward, open bed behind
+      r.push(); r.translate(0, 0.68, 0.62); r.wedge(W * 0.82, 0.5, 0.8, { tile: T.windshield }, [1, 1, 1]); r.pop(); // raked windshield
+      const cabinMatP = { front: T.carGlass, back: T.carGlass, left: T.cabinSide, right: T.cabinSide, top: T.carGlass, bottom: T.carGlass };
+      r.push(); r.translate(0, 0.94, -0.05); r.box(W * 0.84, 0.44, 1.05, cabinMatP, [1, 1, 1]); r.pop(); // cab glasshouse
+      r.push(); r.translate(0, 1.19, -0.05); r.box(W * 0.88, 0.06, 1.15, paint, tint); r.pop(); // roof
+      const bedTint = tint.map((v) => v * 0.92); // open bed: floor, walls, tailgate
+      r.push(); r.translate(0, 0.62, -1.5); r.box(W * 0.94, 0.08, 1.75, darkM, [0.2, 0.2, 0.22]); r.pop();
+      for (const sx of [-1, 1]) { r.push(); r.translate(sx * (W * 0.47 - 0.045), 0.82, -1.5); r.box(0.09, 0.44, 1.75, paint, bedTint); r.pop(); }
+      r.push(); r.translate(0, 0.82, -2.35); r.box(W * 0.94, 0.44, 0.09, paint, bedTint); r.pop();
+    } else {
+      // teardrop glasshouse set well back, mid-engine coupe style
+      r.push(); r.translate(0, 0.7, 0.6); r.wedge(W * 0.8, 0.52, 0.85, { tile: T.windshield }, [1, 1, 1]); r.pop(); // windshield rake
+      const cabinMat = { front: T.carGlass, back: T.carGlass, left: T.cabinSide, right: T.cabinSide, top: T.carGlass, bottom: T.carGlass };
+      r.push(); r.translate(0, 0.96, -0.5); r.box(W * 0.82, 0.44, 1.65, cabinMat, [1, 1, 1]); r.pop(); // cabin glass with interior
+      r.push(); r.translate(0, 1.21, -0.55); r.box(W * 0.86, 0.06, 1.5, paint, kind === 'cop' ? [0.16, 0.16, 0.18] : tint); r.pop(); // roof (black on the interceptor)
+      r.push(); r.translate(0, 0.72, -1.62); r.rotateY(Math.PI); r.wedge(W * 0.8, 0.48, 0.72, glassM, [1, 1, 1]); r.pop(); // rear glass slope
+      r.push(); r.translate(0, 0.66, -1.95); r.box(W * 0.94, 0.16, 0.75, paint, tint); r.pop(); // decklid
+    }
+    // rear: full-width light bar (flares under braking), diffuser, quad exhausts, plates
+    r.push(); r.translate(0, 0.6, -L / 2 - 0.06); r.box(W * 0.82, 0.08, 0.05, { tile: T.white }, [1.5, 0.3, 0.24], o.brake ? 0.95 : 0.35); r.pop();
+    r.push(); r.translate(0, 0.24, -L / 2 - 0.05); r.box(W * 0.9, 0.24, 0.1, darkM, dark); r.pop(); // diffuser
+    for (const fx of [-0.3, 0, 0.3]) { r.push(); r.translate(fx * W * 0.5, 0.2, -L / 2 - 0.1); r.box(0.05, 0.18, 0.05, darkM, [0.2, 0.2, 0.22]); r.pop(); } // diffuser fins
+    for (const sx of [-1, 1]) for (const ex of [0.48, 0.66]) { r.push(); r.translate(sx * ex, 0.3, -L / 2 - 0.08); r.rotateX(Math.PI / 2); r.cylinder(0.045, 0.14, 7, { tile: T.gunMetal }, [0.7, 0.7, 0.73]); r.pop(); } // quad exhausts
+    r.push(); r.translate(0, 0.42, L / 2 + 0.13); r.plane(0.52, 0.13, T.plate1); r.pop();
+    r.push(); r.translate(0, 0.44, -L / 2 - 0.115); r.rotateY(Math.PI); r.plane(0.52, 0.13, T.plate2); r.pop();
+    r.push(); r.translate(0, 1.28, -1.2); r.box(0.05, 0.09, 0.24, darkM, dark); r.pop(); // shark-fin antenna
     if (kind === 'taxi') {
-      r.push(); r.translate(0, 1.48, -0.15); r.box(0.62, 0.16, 0.3, { front: T.taxiSign, back: T.taxiSign, left: T.taxiSign, right: T.taxiSign, top: T.white, bottom: T.white }); r.pop();
-      r.push(); r.translate(0, 0.55, 0); r.box(Wd + 0.012, 0.16, L * 0.98, { tile: T.white }, [0.13, 0.13, 0.14]); r.pop(); // checker band base
+      r.push(); r.translate(0, 1.33, -0.55); r.box(0.55, 0.14, 0.26, { front: T.taxiSign, back: T.taxiSign, left: T.taxiSign, right: T.taxiSign, top: T.white, bottom: T.white }); r.pop(); // sleek roof sign
+      r.push(); r.translate(0, 0.48, -0.2); r.box(W + 0.012, 0.14, L * 0.88, { tile: T.white }, [0.13, 0.13, 0.14]); r.pop(); // checker band base
     }
     if (kind === 'stock') {
-      r.push(); r.translate(0, 1.02, -L / 2 + 0.28); r.box(1.5, 0.07, 0.34, { tile: T.clothDark }, [0.14, 0.14, 0.15]); r.pop(); // wing
-      for (const sx of [-1, 1]) r.push(), r.translate(sx * 0.55, 0.82, -L / 2 + 0.28), r.box(0.07, 0.3, 0.07, { tile: T.gunMetal }), r.pop();
-      for (const sx of [-1, 1]) { r.push(); r.translate(sx * (Wd / 2 + 0.008), 0.6, 0.2); r.rotateY(sx * Math.PI / 2); r.plane(0.78, 0.78, T.roundel); r.pop(); }
-      for (const sx of [-1, 1]) { r.push(); r.translate(sx * (Wd / 2 + 0.008), 0.58, -1.15); r.rotateY(sx * Math.PI / 2); r.plane(1.9, 0.42, T.sponsor); r.pop(); } // sponsor flank graphics
-      r.push(); r.translate(0, 0.3, L / 2 - 0.1); r.box(Wd * 1.02, 0.16, 0.3, { tile: T.clothDark }, [0.14, 0.14, 0.15]); r.pop(); // splitter
+      r.push(); r.translate(0, 1.04, -L / 2 + 0.28); r.box(1.6, 0.07, 0.36, { tile: T.clothDark }, [0.14, 0.14, 0.15]); r.pop(); // bigger wing
+      for (const sx of [-1, 1]) r.push(), r.translate(sx * 0.58, 0.84, -L / 2 + 0.28), r.box(0.07, 0.32, 0.07, { tile: T.gunMetal }), r.pop();
+      for (const sx of [-1, 1]) { r.push(); r.translate(sx * (W / 2 + 0.008), 0.55, 0.2); r.rotateY(sx * Math.PI / 2); r.plane(0.78, 0.78, T.roundel); r.pop(); }
+      for (const sx of [-1, 1]) { r.push(); r.translate(sx * (W / 2 + 0.008), 0.53, -1.15); r.rotateY(sx * Math.PI / 2); r.plane(1.9, 0.42, T.sponsor); r.pop(); } // sponsor flank graphics
     }
     if (kind === 'cop') {
-      for (const sx of [-1, 1]) { r.push(); r.translate(sx * (Wd / 2 + 0.008), 0.58, 0.1); r.rotateY(sx * Math.PI / 2); r.plane(1.7, 0.42, T.pbpdSide); r.pop(); }
-      r.push(); r.translate(0, 1.44, -0.15); r.box(0.95, 0.11, 0.3, { tile: T.white }, [0.2, 0.2, 0.22]); r.pop(); // light bar base
+      // supercar interceptor: PBPD livery on the coupe shell, light bar
+      // integrated flush into the black roof — no push bar, no sedan bulk
+      for (const sx of [-1, 1]) { r.push(); r.translate(sx * (W / 2 + 0.008), 0.52, -0.2); r.rotateY(sx * Math.PI / 2); r.plane(1.9, 0.46, T.pbpdSide); r.pop(); }
+      r.push(); r.translate(0, 1.26, -0.55); r.box(0.98, 0.05, 0.26, { tile: T.white }, [0.16, 0.16, 0.18]); r.pop(); // integrated light bar base
       const ph = o.lightPhase || 0;
-      r.push(); r.translate(-0.25, 1.46, -0.15); r.box(0.42, 0.09, 0.26, { tile: T.white }, [1.9, 0.3, 0.25], ph % 2 ? 0.9 : 0.05); r.pop();
-      r.push(); r.translate(0.25, 1.46, -0.15); r.box(0.42, 0.09, 0.26, { tile: T.white }, [0.3, 0.45, 1.9], ph % 2 ? 0.05 : 0.9); r.pop();
-      r.push(); r.translate(0, 0.45, L / 2 + 0.14); r.box(1.5, 0.34, 0.08, { tile: T.gunMetal }); r.pop(); // push bar
-      for (const sx of [-1, 1]) r.push(), r.translate(sx * 0.6, 0.45, L / 2 + 0.08), r.box(0.07, 0.3, 0.2, { tile: T.gunMetal }), r.pop();
+      r.push(); r.translate(-0.25, 1.28, -0.55); r.box(0.44, 0.06, 0.22, { tile: T.white }, [1.9, 0.3, 0.25], ph % 2 ? 0.95 : 0.05); r.pop();
+      r.push(); r.translate(0.25, 1.28, -0.55); r.box(0.44, 0.06, 0.22, { tile: T.white }, [0.3, 0.45, 1.9], ph % 2 ? 0.05 : 0.95); r.pop();
+      r.push(); r.translate(0, 0.52, -L / 2 - 0.1); r.rotateY(Math.PI); r.plane(1.1, 0.24, T.pbpdSide); r.pop(); // rear PBPD lettering
+      r.push(); r.translate(0, 0.8, -L / 2 + 0.06); r.box(W * 0.72, 0.05, 0.24, darkM, dark); r.pop(); // lip spoiler
+    }
+    if (kind === 'sedan' || kind === 'taxi') {
+      r.push(); r.translate(0, 0.8, -L / 2 + 0.06); r.box(W * 0.72, 0.05, 0.24, paint, tint); r.pop(); // lip spoiler
     }
   }
 }
@@ -380,36 +401,116 @@ export function drawGhost(r, T, t) {
   r.pop();
 }
 
-// ---------------- giant Tung Sahur (~7.5 m) ----------------
-export function drawSahur(r, T, t) {
+// ---------------- giant Tung Sahur (~19 m) ----------------
+const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+const easeIn = (x) => x * x * x;
+/** Attack arm angle (rotateX at the shoulder): carry -> overhead windup ->
+ *  vertical smash -> recover, driven by attackT in 0..1. In this renderer a
+ *  hanging limb swings FORWARD (+Z) at negative rotateX, so the smash lands
+ *  at -0.35 (down-forward) after the -2.95 overhead windup. */
+function smashCurve(a) {
+  if (a < 0.35) return -0.55 + (-2.95 + 0.55) * easeOut(a / 0.35);
+  if (a < 0.55) return -2.95 + (-0.35 + 2.95) * easeIn((a - 0.35) / 0.2);
+  return -0.35 + (-0.55 + 0.35) * easeOut((a - 0.55) / 0.45);
+}
+/** Kicking-leg hip angle over the same windup/strike/recover beats. */
+function kickCurve(a) {
+  if (a < 0.3) return 0.25 * easeOut(a / 0.3);
+  if (a < 0.5) return 0.25 + (-1.6 - 0.25) * easeIn((a - 0.3) / 0.2);
+  return -1.6 + 1.6 * easeOut((a - 0.5) / 0.5);
+}
+/**
+ * The Sahur at true giant scale — about 19 m of carved wood. pose:
+ * {phase (run cycle), run 0..1 (0 idle, ~0.45 walk, 1 full run),
+ *  attack: null | 'punch' | 'kick', attackT 0..1}. The punch is an overhead
+ * club smash; the kick swings the right leg through the target.
+ */
+export function drawSahur(r, T, t, pose = {}) {
   const wood = { tile: T.wood };
-  const sway = Math.sin(t * 0.9) * 0.02;
-  r.push(); r.rotateZ(sway);
-  for (const sx of [-1, 1]) { // stubby legs
-    r.push(); r.translate(sx * 0.55, 0.55, 0); r.box(0.42, 1.1, 0.46, wood, [0.8, 0.68, 0.5]); r.pop();
-    r.push(); r.translate(sx * 0.55, 0.06, 0.12); r.box(0.46, 0.12, 0.7, wood, [0.6, 0.48, 0.34]); r.pop(); // feet
+  const bark = { tile: T.bark };
+  const phase = pose.phase || 0;
+  const run = pose.run || 0;
+  const amp = 0.3 + 0.7 * run; // stride amplitude grows with speed
+  const bob = Math.abs(Math.sin(phase)) * 0.42 * run + Math.sin(t * 1.1) * 0.05;
+  let bodyPitch = 0.13 * run; // forward lean at speed
+  if (pose.attack === 'punch') bodyPitch += pose.attackT > 0.3 && pose.attackT < 0.6 ? 0.16 : 0.03;
+  if (pose.attack === 'kick') bodyPitch -= pose.attackT > 0.25 && pose.attackT < 0.55 ? 0.1 : 0;
+
+  r.push();
+  r.scale(1.16, 1.16, 1.16); // drawn ~16.7 m, stands ~19.4 m in the world
+  r.translate(0, bob, 0);
+  r.rotateZ(Math.sin(phase) * 0.03 * run + Math.sin(t * 0.9) * 0.012);
+  r.rotateX(bodyPitch);
+
+  // ---- legs: long strides, thigh + shin + foot, knees that bend ----
+  for (const sx of [-1, 1]) {
+    const ph = phase + (sx > 0 ? Math.PI : 0);
+    let thigh = Math.sin(ph) * 0.78 * amp;
+    let knee = Math.max(0, -Math.cos(ph)) * 1.05 * amp + 0.04;
+    if (pose.attack === 'kick' && sx > 0) { thigh = kickCurve(pose.attackT); knee = pose.attackT < 0.3 ? 0.55 : 0.05; }
+    if (pose.attack === 'punch' && sx > 0) { thigh = 0.3; knee = 0.35; } // planted brace leg
+    r.push();
+    r.translate(sx * 1.15, 5.45, 0);
+    r.rotateX(thigh);
+    r.push(); r.translate(0, -1.35, 0); r.box(0.95, 2.7, 1.05, wood, [0.8, 0.68, 0.5]); r.pop(); // thigh
+    r.translate(0, -2.7, 0);
+    r.rotateX(knee);
+    r.push(); r.translate(0, -1.25, 0); r.box(0.8, 2.5, 0.88, wood, [0.84, 0.71, 0.53]); r.pop(); // shin
+    r.translate(0, -2.5, 0.35);
+    r.box(1.0, 0.5, 1.95, wood, [0.62, 0.49, 0.35]); // foot
+    r.pop();
   }
-  r.push(); r.translate(0, 2.6, 0); r.cylinder(1.02, 2.9, 14, wood, [0.92, 0.78, 0.58], 0, T.wood); r.pop(); // torso drum
-  for (const zz of [-1.2, 0, 1.2]) { // drum bands
-    r.push(); r.translate(0, 2.6 + zz * 0.0, 0); r.translate(0, zz, 0); r.cylinder(1.06, 0.14, 14, { tile: T.bark }, [0.7, 0.55, 0.4]); r.pop();
+
+  // ---- pelvis + the great drum torso ----
+  r.push(); r.translate(0, 5.95, 0); r.box(2.7, 1.25, 1.8, bark, [0.66, 0.52, 0.38]); r.pop();
+  r.push(); r.translate(0, 9.15, 0); r.cylinder(2.78, 5.7, 16, wood, [0.92, 0.78, 0.58], 0, T.wood); r.pop(); // torso drum
+  for (const by of [6.7, 9.15, 11.6]) {
+    r.push(); r.translate(0, by, 0); r.cylinder(2.86, 0.42, 16, bark, [0.7, 0.55, 0.4]); r.pop(); // drum bands
   }
-  // head
-  r.push(); r.translate(0, 4.6, 0);
-  r.box(1.05, 1.15, 1.0, wood, [0.95, 0.8, 0.6]);
+  r.push(); r.translate(0, 12.15, 0); r.box(4.6, 0.8, 2.2, wood, [0.88, 0.74, 0.55]); r.pop(); // shoulder beam
+
+  // ---- head (centre ~14.6 m up, ~16.9 m before the root scale) ----
+  r.push(); r.translate(0, 14.55, 0);
+  r.box(2.7, 3.1, 2.55, wood, [0.95, 0.8, 0.6]);
   for (const sx of [-1, 1]) { // big round eyes
-    r.push(); r.translate(sx * 0.26, 0.14, 0.51); r.box(0.2, 0.24, 0.04, { tile: T.white }, [1.3, 1.3, 1.28]); r.translate(0, 0, 0.025); r.box(0.09, 0.11, 0.02, { tile: T.white }, [0.08, 0.07, 0.06]); r.pop();
-    r.push(); r.translate(sx * 0.26, 0.34, 0.51); r.box(0.26, 0.06, 0.04, { tile: T.bark }, [0.5, 0.38, 0.26]); r.pop(); // brows
+    r.push(); r.translate(sx * 0.66, 0.35, 1.29); r.box(0.5, 0.6, 0.08, { tile: T.white }, [1.3, 1.3, 1.28]); r.translate(0, 0, 0.05); r.box(0.22, 0.28, 0.04, { tile: T.white }, [0.08, 0.07, 0.06]); r.pop();
+    r.push(); r.translate(sx * 0.66, 0.85, 1.29); r.box(0.66, 0.15, 0.08, bark, [0.5, 0.38, 0.26]); r.pop(); // brows
   }
-  r.push(); r.translate(0, -0.12, 0.51); r.box(0.13, 0.3, 0.05, wood, [0.85, 0.7, 0.5]); r.pop(); // nose
-  r.push(); r.translate(0, -0.38, 0.51); r.box(0.44, 0.07, 0.04, { tile: T.white }, [0.3, 0.2, 0.12]); r.pop(); // mouth
-  r.push(); r.translate(0, 0.66, 0); r.box(1.1, 0.16, 1.05, { tile: T.bark }, [0.72, 0.56, 0.4]); r.pop(); // cap rim
+  r.push(); r.translate(0, -0.3, 1.3); r.box(0.34, 0.75, 0.1, wood, [0.85, 0.7, 0.5]); r.pop(); // nose
+  r.push(); r.translate(0, -0.95, 1.3); r.box(1.1, 0.17, 0.08, { tile: T.white }, [0.3, 0.2, 0.12]); r.pop(); // mouth
+  r.push(); r.translate(0, 1.68, 0); r.box(2.85, 0.4, 2.7, bark, [0.72, 0.56, 0.4]); r.pop(); // cap rim
+  r.push(); r.translate(0, 1.95, -0.2); r.cylinder(0.5, 0.5, 10, wood, [0.9, 0.76, 0.56]); r.pop(); // top knot
   r.pop();
-  // left arm holds a kettle drum at its side; right arm raises the club
-  r.push(); r.translate(-1.25, 3.3, 0); r.rotateZ(0.5); r.box(0.34, 1.7, 0.38, wood, [0.88, 0.74, 0.55]); r.pop();
-  r.push(); r.translate(-1.75, 2.2, 0.3); r.rotateX(Math.PI / 2); r.cylinder(0.5, 0.5, 12, { tile: T.bark }, [0.75, 0.6, 0.44], 0, T.wood); r.pop(); // side drum
-  const raise = Math.sin(t * 1.7) > 0 ? 0.25 : 0;
-  r.push(); r.translate(1.3, 3.6, 0); r.rotateZ(-2.2 - raise); r.box(0.34, 1.8, 0.38, wood, [0.88, 0.74, 0.55]);
-  r.translate(0, -1.6, 0); r.rotateZ(0.1); r.cylinder(0.17, 1.7, 9, wood, [0.8, 0.64, 0.46], 0, T.wood); r.pop(); // club
+
+  // ---- left arm: swings against the stride, kettle drum slung at the hip ----
+  r.push();
+  r.translate(-3.05, 11.75, 0);
+  r.rotateX(Math.sin(phase) * 0.55 * amp + 0.08);
+  r.push(); r.translate(0, -1.35, 0); r.box(0.85, 2.7, 0.92, wood, [0.88, 0.74, 0.55]); r.pop(); // upper arm
+  r.translate(0, -2.7, 0);
+  r.rotateX(-0.3);
+  r.push(); r.translate(0, -1.2, 0); r.box(0.74, 2.4, 0.8, wood, [0.86, 0.72, 0.54]); r.pop(); // forearm
+  r.translate(0, -2.45, 0);
+  r.box(1.05, 0.95, 1.05, wood, [0.82, 0.68, 0.5]); // fist
+  r.pop();
+  r.push(); r.translate(-2.9, 6.8, 0.6); r.rotateX(Math.PI / 2); r.rotateZ(0.15); r.cylinder(1.15, 1.1, 14, bark, [0.75, 0.6, 0.44], 0, T.wood); r.pop(); // side drum
+
+  // ---- right arm: carries the club, smashes with it ----
+  const clubArm = pose.attack === 'punch' ? smashCurve(pose.attackT) : -0.55 + Math.sin(phase + Math.PI) * 0.35 * amp;
+  r.push();
+  r.translate(3.05, 11.75, 0);
+  r.rotateX(clubArm);
+  r.push(); r.translate(0, -1.35, 0); r.box(0.85, 2.7, 0.92, wood, [0.88, 0.74, 0.55]); r.pop(); // upper arm
+  r.translate(0, -2.7, 0);
+  r.rotateX(pose.attack === 'punch' ? -0.15 : -0.35);
+  r.push(); r.translate(0, -1.2, 0); r.box(0.74, 2.4, 0.8, wood, [0.86, 0.72, 0.54]); r.pop(); // forearm
+  r.translate(0, -2.45, 0);
+  r.box(1.05, 0.95, 1.05, wood, [0.82, 0.68, 0.5]); // fist gripping the club
+  r.push(); r.translate(0, -0.3, 0.3); r.rotateX(-0.5); // the kentongan club, business end down-forward
+  r.cylinder(0.34, 4.6, 10, wood, [0.8, 0.64, 0.46], 0, T.wood);
+  r.translate(0, -2.6, 0); r.cylinder(0.52, 1.3, 10, wood, [0.76, 0.6, 0.42], 0, T.wood); // club head
+  r.pop();
+  r.pop();
   r.pop();
 }
 
