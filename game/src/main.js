@@ -177,15 +177,15 @@ const dre = { x: WORLD.garage.x + 6, z: WORLD.garage.z + 14, yaw: -0.6, app: { s
 // ---------------- sky & lighting ----------------
 const PHASES = [
   // [hour, sunColor, sunIntensity, ambSky, ambGnd, fog/horizon, zenithTint]
-  [0, [0.35, 0.45, 0.65], 0.25, [0.2, 0.23, 0.33], [0.09, 0.1, 0.14], [0.1, 0.13, 0.22]],
-  [5, [0.4, 0.48, 0.68], 0.3, [0.2, 0.23, 0.33], [0.09, 0.1, 0.14], [0.16, 0.18, 0.28]],
-  [7, [1.0, 0.79, 0.57], 0.9, [0.56, 0.56, 0.59], [0.26, 0.24, 0.21], [0.78, 0.63, 0.52]],
-  [10, [1.05, 0.98, 0.88], 1.2, [0.68, 0.72, 0.79], [0.33, 0.31, 0.28], [0.62, 0.72, 0.82]],
-  [15, [1.05, 0.95, 0.82], 1.15, [0.66, 0.7, 0.77], [0.33, 0.31, 0.28], [0.6, 0.7, 0.82]],
+  [0, [0.35, 0.45, 0.65], 0.25, [0.22, 0.25, 0.35], [0.115, 0.12, 0.155], [0.1, 0.13, 0.22]],
+  [5, [0.4, 0.48, 0.68], 0.3, [0.2, 0.23, 0.33], [0.11, 0.115, 0.15], [0.16, 0.18, 0.28]],
+  [7, [1.0, 0.79, 0.57], 0.9, [0.56, 0.56, 0.59], [0.26, 0.24, 0.21], [0.82, 0.62, 0.48]],
+  [10, [1.05, 0.98, 0.88], 1.22, [0.68, 0.72, 0.79], [0.3, 0.285, 0.26], [0.62, 0.72, 0.82]],
+  [15, [1.05, 0.95, 0.82], 1.15, [0.66, 0.7, 0.77], [0.3, 0.285, 0.26], [0.6, 0.7, 0.82]],
   [17.5, [1.06, 0.77, 0.5], 1.05, [0.6, 0.58, 0.56], [0.3, 0.27, 0.23], [0.84, 0.64, 0.5]],
-  [19, [0.95, 0.5, 0.38], 0.55, [0.36, 0.34, 0.42], [0.16, 0.14, 0.15], [0.62, 0.47, 0.48]],
-  [20.5, [0.4, 0.46, 0.66], 0.3, [0.23, 0.26, 0.36], [0.09, 0.1, 0.14], [0.15, 0.18, 0.29]],
-  [24, [0.35, 0.45, 0.65], 0.25, [0.2, 0.23, 0.33], [0.09, 0.1, 0.14], [0.1, 0.13, 0.22]],
+  [19, [0.95, 0.5, 0.38], 0.55, [0.38, 0.33, 0.4], [0.16, 0.14, 0.15], [0.62, 0.47, 0.48]],
+  [20.5, [0.4, 0.46, 0.66], 0.3, [0.23, 0.26, 0.36], [0.11, 0.115, 0.15], [0.15, 0.18, 0.29]],
+  [24, [0.35, 0.45, 0.65], 0.25, [0.22, 0.25, 0.35], [0.115, 0.12, 0.155], [0.1, 0.13, 0.22]],
 ];
 function lerp(a, b, t) { return a + (b - a) * t; }
 function lerp3(a, b, t) { return [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)]; }
@@ -557,6 +557,65 @@ function carPushOut(o, rad) {
   if (G.hero.car) test(G.hero.car.x, G.hero.car.z, G.hero.car.yaw);
 }
 
+// ---------- police-grade collision: a cop is a 4.5 m car, not a point ------
+// Round 1 moved cops as a centre point (r 1.25) plus carPushOut's spine
+// circles: the nose punched ~1 m into buildings head-on, and two cars could
+// sit 3.1 m apart nose-to-nose (4.5 m of car in 3.1 m of space). The helpers
+// below resolve the car's REAL footprint — three spine circles for buildings,
+// spine-segment vs spine-segment for vehicles — after every sub-step.
+const CAR_SPINE = [-1.05, 0, 1.05];
+/** Push car c out of every building/prop AABB as three spine circles. */
+function resolveCarFootprint(c) {
+  const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
+  for (let pass = 0; pass < 2; pass++) for (const t of CAR_SPINE) {
+    const px = c.x + fx * t, pz = c.z + fz * t;
+    const q = { x: px, z: pz };
+    resolveCircle(q, 0.95);
+    c.x += q.x - px; c.z += q.z - pz;
+  }
+}
+/** Would the car's footprint at (x, z, yaw) touch anything solid? */
+function footprintBlocked(x, z, yaw) {
+  const fx = Math.sin(yaw), fz = Math.cos(yaw);
+  for (const t of CAR_SPINE) if (collide(x + fx * t, z + fz * t, 0.95)) return true;
+  return false;
+}
+/** Closest points between two 2D segments (for car-vs-car separation). */
+function segSeg(p1x, p1z, p2x, p2z, p3x, p3z, p4x, p4z) {
+  const d1x = p2x - p1x, d1z = p2z - p1z, d2x = p4x - p3x, d2z = p4z - p3z;
+  const rx = p1x - p3x, rz = p1z - p3z;
+  const a = d1x * d1x + d1z * d1z, e = d2x * d2x + d2z * d2z, f = d2x * rx + d2z * rz;
+  let s = 0, t = 0;
+  if (a > 1e-9 && e > 1e-9) {
+    const cc = d1x * rx + d1z * rz, b = d1x * d2x + d1z * d2z, den = a * e - b * b;
+    s = den > 1e-9 ? clamp((b * f - cc * e) / den, 0, 1) : 0;
+    t = (b * s + f) / e;
+    if (t < 0) { t = 0; s = clamp(-cc / a, 0, 1); }
+    else if (t > 1) { t = 1; s = clamp((b - cc) / a, 0, 1); }
+  } else if (e > 1e-9) t = clamp(f / e, 0, 1);
+  else if (a > 1e-9) s = clamp(-(d1x * rx + d1z * rz) / a, 0, 1);
+  const px = p1x + d1x * s, pz = p1z + d1z * s, qx = p3x + d2x * t, qz = p3z + d2z * t;
+  return { d: Math.hypot(px - qx, pz - qz), px, pz, qx, qz };
+}
+/** Keep car c fully out of every other vehicle: both cars are spine
+ *  segments (nose to tail); if they come closer than two half-widths,
+ *  push c out along the join line. Wrecks count as obstacles too. */
+function carSeparation(c, selfRef) {
+  const fx = Math.sin(c.yaw), fz = Math.cos(c.yaw);
+  const a1x = c.x - fx * 1.5, a1z = c.z - fz * 1.5, a2x = c.x + fx * 1.5, a2z = c.z + fz * 1.5;
+  const test = (o, yaw) => {
+    const ofx = Math.sin(yaw), ofz = Math.cos(yaw);
+    const r = segSeg(a1x, a1z, a2x, a2z, o.x - ofx * 1.5, o.z - ofz * 1.5, o.x + ofx * 1.5, o.z + ofz * 1.5);
+    const min = 1.92;
+    if (r.d < min && r.d > 1e-6) { c.x += (r.px - r.qx) / r.d * (min - r.d); c.z += (r.pz - r.qz) / r.d * (min - r.d); }
+    else if (r.d <= 1e-6) c.x += 0.6; // centres coincide: arbitrary nudge, next pass settles it
+  };
+  for (const p of parked) test(p, p.yaw);
+  for (const t of cars) { if (t.active === false) continue; const tr = trafficTransform(t); test(tr, tr.yaw); }
+  for (const o of cops) { if (o !== selfRef) test(o, o.yaw); }
+  if (G.hero.car && G.hero.car !== selfRef) test(G.hero.car, G.hero.car.yaw);
+}
+
 // ---------- cars: enter / exit / decoy / interact ----------
 function trafficTransform(c) {
   if (c.vertical) return { x: c.line - 3.1 * c.dir, z: c.pos, yaw: c.dir > 0 ? 0 : Math.PI };
@@ -842,6 +901,8 @@ function spawnCop(fromHQ) {
   }
   if (dist2(x, z, h.x, h.z) < 34) { x = -x * 0.6; z = clamp(z + 60, -100, 190); }
   cops.push({ block: false, x, z, yaw: R.range(0, 6.28), speed: 0, wheelSpin: 0, damage: 0, lightSeed: R.int(0, 3) });
+  const c = cops[cops.length - 1]; // never materialise inside anything
+  resolveCarFootprint(c); carSeparation(c, c); resolveCarFootprint(c);
 }
 function updatePolice(dt) {
   const h = G.hero;
@@ -854,6 +915,9 @@ function updatePolice(dt) {
     const bx = clamp(h.x + fx * 46, -215, 215), bz = clamp(h.z + fz * 46, -104, 190);
     cops.push({ block: true, x: bx - fz * 3, z: bz + fx * 3, yaw: h.yaw + Math.PI / 2 + 0.25, speed: 0, wheelSpin: 0, damage: 0, lightSeed: 0 });
     cops.push({ block: true, x: bx + fz * 3, z: bz - fx * 3, yaw: h.yaw + Math.PI / 2 - 0.25, speed: 0, wheelSpin: 0, damage: 0, lightSeed: 1 });
+    // roadblock units are placed blind, 46 m ahead of the hero — resolve
+    // each one out of any building or vehicle it landed inside
+    for (const c of cops) if (c.block) { resolveCarFootprint(c); carSeparation(c, c); resolveCarFootprint(c); }
   }
   if (G.heat < 1.5) for (let i = cops.length - 1; i >= 0; i--) if (cops[i].block) cops.splice(i, 1);
   const decoy = simT < G.decoyUntil;
@@ -869,16 +933,48 @@ function updatePolice(dt) {
     const d = dist2(c.x, c.z, h.x, h.z);
     if (G.heat <= 0.05 && d > 70) { cops.splice(i, 1); continue; }
     if (d < 30) nearCop = true;
-    const wantYaw = Math.atan2(tx - c.x, tz - c.z);
+    // steering: pursue the hero, but probe the road ahead — if the
+    // footprint a few metres out is inside something solid, swing wide
+    // around it (remembering the chosen side) and slow down
+    let wantYaw = Math.atan2(tx - c.x, tz - c.z);
+    const probeD = 3.4 + Math.abs(c.speed) * 0.28;
+    let blocked = footprintBlocked(c.x + Math.sin(c.yaw) * probeD, c.z + Math.cos(c.yaw) * probeD, c.yaw);
+    if (blocked) {
+      if (c.avoidDir === undefined) c.avoidDir = 1;
+      const aL = wantYaw - 0.85, aR = wantYaw + 0.85;
+      const bL = footprintBlocked(c.x + Math.sin(aL) * probeD, c.z + Math.cos(aL) * probeD, aL);
+      const bR = footprintBlocked(c.x + Math.sin(aR) * probeD, c.z + Math.cos(aR) * probeD, aR);
+      if (!bL && (bR || c.avoidDir < 0)) c.avoidDir = -1;
+      else if (!bR) c.avoidDir = 1;
+      wantYaw += c.avoidDir * 0.85;
+    } else c.avoidDir = undefined;
     c.yaw = angLerp(c.yaw, wantYaw, dt * (d > 40 ? 1.4 : 2.4));
-    const spd = d > 55 ? 17.5 : d > 14 ? 12.5 : 6.5;
+    let spd = d > 55 ? 17.5 : d > 14 ? 12.5 : 6.5;
+    if (blocked) spd = Math.min(spd, 6.5);
+    if (c.reverseT > 0) { c.reverseT -= dt; spd = -5.5; } // wedged: back out, then re-approach
     c.speed += clamp(spd - c.speed, -18 * dt, 8 * dt);
-    const ox = c.x, oz = c.z;
-    c.x += Math.sin(c.yaw) * c.speed * dt;
-    if (collide(c.x, c.z, 1.25)) c.x = ox;
-    c.z += Math.cos(c.yaw) * c.speed * dt;
-    if (collide(c.x, c.z, 1.25)) c.z = oz;
-    carPushOut(c, 1.1); // units slide around parked/traffic cars instead of through them
+    // sub-stepped movement (<= ~0.3 m per step) with the full footprint
+    // resolved after every step: nothing can be tunnelled past, and no
+    // push-out can shove the unit into a wall unchecked
+    const sx0 = c.x, sz0 = c.z;
+    const steps = Math.min(5, Math.max(1, Math.ceil(Math.abs(c.speed * dt) / 0.3)));
+    const sdt = dt / steps;
+    for (let sIdx = 0; sIdx < steps; sIdx++) {
+      c.x += Math.sin(c.yaw) * c.speed * sdt;
+      c.z += Math.cos(c.yaw) * c.speed * sdt;
+      resolveCarFootprint(c);
+      carSeparation(c, c);
+      resolveCarFootprint(c);
+    }
+    if (!h.car) pushCircle(c, h, 2.5); // brake for the hero on foot, never centre onto him
+    if (G.sahur.active) pushCircle(c, G.sahur, 3.4); // nor drive through the giant
+    resolveCarFootprint(c);
+    // grind detection: throttle open but no net travel -> reverse out
+    const netTravel = Math.hypot(c.x - sx0, c.z - sz0);
+    if (Math.abs(c.speed) > 3 && netTravel < Math.abs(c.speed * dt) * 0.25) {
+      c.stuckT = (c.stuckT || 0) + dt;
+      if (c.stuckT > 0.9 && !(c.reverseT > 0)) { c.reverseT = 0.85; c.stuckT = 0; }
+    } else c.stuckT = 0;
     c.wheelSpin += c.speed * dt / 0.37;
     if (h.car) {
       if (dist2(c.x, c.z, h.car.x, h.car.z) < 3.1 && c.speed > 4) { h.car.damage = clamp(h.car.damage + dt * 0.35, 0, 1); c.speed *= 0.94; spark(h.car.x, 0.8, h.car.z, 2); }
@@ -1510,6 +1606,39 @@ function stageShot(name) {
     h.x = 16; h.z = 44; h.yaw = Math.PI; h.walk = 2.4; h.moving = true;
     G.camYaw = Math.PI; G.camPitch = 0.32;
     G.money = 860; G.rp = 240;
+  } else if (name === 'car') {
+    G.time = 10.9;
+    // Round-2 close-up: one civilian coupe large in frame, front
+    // three-quarter, the PBPD interceptor behind it — the de-boxing
+    // acceptance shot. The silhouette must read as a car, not stacked boxes.
+    parked[0].x = 11.4; parked[0].z = 15.5; parked[0].yaw = 1.35; parked[0].kind = 'sedan'; parked[0].tint = [0.16, 0.3, 0.62];
+    for (let i = 1; i < parked.length; i++) { parked[i].x = -100 - i * 12; parked[i].z = 150; } // clear the frame of random parked cars
+    for (const c of cars) { const t = trafficTransform(c); if (Math.hypot(t.x - 14, t.z - 18) < 70) c.pos += 260; } // and of frozen traffic near the corner
+    cops.push({ block: true, x: 13.8, z: 9.8, yaw: 2.95, speed: 0, wheelSpin: 0, damage: 0, lightSeed: 1 });
+    h.x = 15.6; h.z = 19.8; h.yaw = Math.atan2(11.4 - h.x, 15.5 - h.z); h.weapon = 'pistol'; h.aiming = true;
+    G.camYaw = h.yaw; G.camPitch = 0.1;
+    G.money = 860; G.rp = 240;
+  } else if (name === 'palm') {
+    G.time = 10.5;
+    // Round-2 palm close-up: stand off a promenade palm, camera low and
+    // tilted up — one clean trunk curve, the crown fully joined, fronds
+    // fanned against the sky.
+    const p = WORLD.palms.find((q) => q.z < -108 && q.x < -180) || WORLD.palms[0]; // far-west promenade palm: open sand, no structures nearby
+    h.x = p.x + 7.5; h.z = p.z + 4.0; h.yaw = Math.atan2(p.x + 4.2 - h.x, p.z - h.z); h.weapon = 'pistol'; // aim BESIDE the palm: the camera rides the aim line, so an on-palm aim hides the trunk behind the hero
+    G.camYaw = h.yaw; G.camPitch = -0.2;
+    G.money = 300; G.rp = 120;
+  } else if (name === 'fleet') {
+    G.time = 11.2;
+    // Smoothness audit line-up: the truck, pickup and bike — the vehicle
+    // types the car/street shots never frame — parked in a row on Palm Row.
+    parked[3].x = 10; parked[3].z = 6; parked[3].yaw = 1.35; parked[3].kind = 'truck';
+    parked[4].x = 17; parked[4].z = 9; parked[4].yaw = 1.5; parked[4].kind = 'pickup'; parked[4].tint = [0.55, 0.3, 0.12];
+    parked[5].x = 20.5; parked[5].z = 11.5; parked[5].yaw = 1.2; parked[5].kind = 'bike';
+    for (let i = 0; i < parked.length; i++) { if (i >= 3 && i <= 5) continue; parked[i].x = -100 - i * 12; parked[i].z = 150; }
+    for (const c of cars) { const t = trafficTransform(c); if (Math.hypot(t.x - 16, t.z - 12) < 70) c.pos += 260; }
+    h.x = 16; h.z = 17.5; h.yaw = Math.atan2(15 - h.x, 9 - h.z); h.weapon = 'pistol'; h.aiming = true;
+    G.camYaw = h.yaw; G.camPitch = 0.12;
+    G.money = 500; G.rp = 150;
   }
 }
 

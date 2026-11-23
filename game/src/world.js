@@ -76,18 +76,42 @@ function buildBuilding(r, T, R, cx, cz, w, d, h, style, opts = {}) {
   // narrower crown tier — skylines stop reading as one extruded box
   const tiered = h >= 15 && !opts.sign;
   const h1 = tiered ? h * 0.62 : h;
+  r.push(); r.translate(0, 0.57, 0); r.box(w + 0.55, 1.15, d + 0.55, { tile: T.concrete }, [0.78, 0.76, 0.72]); r.pop(); // plinth: the block sits on a base
   r.push(); r.translate(0, h1 / 2, 0); r.box(w, h1, d, { tile }, tint); r.pop();
   if (tiered) {
-    r.push(); r.translate(0, h1 + 0.16, 0); r.box(w + 0.55, 0.32, d + 0.55, { tile: T.concrete }, [0.92, 0.9, 0.86]); r.pop(); // cornice
-    r.push(); r.translate(0, h1 + (h - h1) / 2, 0); r.box(w * 0.78, h - h1, d * 0.78, { tile }, tint.map((v) => v * 1.04)); r.pop(); // crown tier
+    // chamfered transition: four sloped bands lean the shaft into the crown
+    const bandM = { tile: T.concrete }, bandT = [0.88, 0.86, 0.82];
+    r.push(); r.translate(0, h1 + 0.1, d / 2 - 0.03); r.rotateX(-0.55); r.box(w + 0.24, 0.6, 0.1, bandM, bandT); r.pop();
+    r.push(); r.translate(0, h1 + 0.1, -(d / 2 - 0.03)); r.rotateX(0.55); r.box(w + 0.24, 0.6, 0.1, bandM, bandT); r.pop();
+    r.push(); r.translate(w / 2 - 0.03, h1 + 0.1, 0); r.rotateZ(0.55); r.box(0.1, 0.6, d + 0.24, bandM, bandT); r.pop();
+    r.push(); r.translate(-(w / 2 - 0.03), h1 + 0.1, 0); r.rotateZ(-0.55); r.box(0.1, 0.6, d + 0.24, bandM, bandT); r.pop();
+    r.push(); r.translate(0, h1 + 0.42, 0); r.box(w * 0.8 + 0.5, 0.3, d * 0.8 + 0.5, { tile: T.concrete }, [0.92, 0.9, 0.86]); r.pop(); // cornice cap
+    r.push(); r.translate(0, h1 + 0.5 + (h - h1 - 0.5) / 2, 0); r.box(w * 0.78, h - h1 - 0.5, d * 0.78, { tile }, tint.map((v) => v * 1.04)); r.pop(); // crown tier
   }
   r.push(); r.translate(0, h + 0.22, 0); r.box((tiered ? w * 0.78 : w) + 0.7, 0.44, (tiered ? d * 0.78 : d) + 0.7, { tile: T.roof }, [0.9, 0.88, 0.85]); r.pop(); // parapet
   if (!tiered && h < 13 && R.chance(0.22)) { // a gabled roofline on some low blocks
     r.push(); r.translate(0, h + 0.4, 0); r.rotateY(R.chance(0.5) ? 0 : Math.PI / 2); r.wedge(w * 0.92, R.range(1.1, 1.9), d * 0.92, { tile: T.roof }, [0.85, 0.6, 0.5]); r.pop();
   }
   if (opts.shop) { // ground-floor shopfront band on the street face
-    r.push(); r.translate(0, 1.7, d / 2 + 0.06); r.box(w * 0.94, 3.4, 0.12, { tile: T.shopfront }); r.pop();
+    r.push(); r.translate(0, 1.7, d / 2 + 0.32); r.box(w * 0.94, 3.4, 0.12, { tile: T.shopfront }); r.pop();
     r.push(); r.translate(0, 3.62, d / 2 + 0.55); r.rotateX(0.5); r.box(w * 0.8, 0.08, 1.3, { tile: R.chance(0.5) ? T.awning : T.awningRed }); r.pop();
+  }
+  // street-face detail density: AC units under random windows (the facade
+  // texture's grid is 3 cols x 4 rows, centres at known UV fractions) and
+  // an entrance with a canopy for plain blocks
+  if (!opts.sign) {
+    const colsU = [0.207, 0.5, 0.793], rowsV = [0.861, 0.62, 0.38, 0.139];
+    for (let k = 0; k < 2; k++) {
+      if (!R.chance(0.65)) continue;
+      const wx = (R.pick(colsU) - 0.5) * w, wy = R.pick(rowsV) * h1;
+      if (wy > h1 - 1.2 || wy < 1.6) continue;
+      r.push(); r.translate(wx, wy - 0.5, d / 2 + 0.18); r.box(0.58, 0.42, 0.34, { tile: T.corrugated }, [0.82, 0.82, 0.8]); r.pop();
+    }
+    if (!opts.shop && R.chance(0.55)) {
+      r.push(); r.translate(0, 1.32, d / 2 + 0.3); r.box(1.7, 2.64, 0.14, { tile: T.white }, [0.16, 0.15, 0.16]); r.pop(); // dark recess
+      r.push(); r.translate(0, 2.78, d / 2 + 0.62); r.rotateX(0.22); r.box(2.3, 0.08, 1.0, { tile: T.concrete }, [0.85, 0.83, 0.8]); r.pop(); // canopy
+      r.push(); r.translate(0, 0.09, d / 2 + 0.55); r.box(2.0, 0.18, 0.7, { tile: T.concrete }, [0.8, 0.78, 0.74]); r.pop(); // step
+    }
   }
   if (opts.sign) {
     r.push(); r.translate(0, h * 0.72, d / 2 + 0.35); r.box(opts.signW || 12, 2.0, 0.5, { tile: T.white }, [0.25, 0.27, 0.3]);
@@ -116,27 +140,68 @@ function buildBuilding(r, T, R, cx, cz, w, d, h, style, opts = {}) {
 
 function palm(r, T, R, x, z, lean = 0) {
   const h = R.range(4.6, 6.4);
-  r.push(); r.translate(x, 0, z); r.rotateZ(lean); r.rotateX(lean * 0.6);
-  // curved, tapering trunk: three stacked segments bending progressively
-  const bend = R.range(0.06, 0.16) * (R.chance(0.5) ? 1 : -1);
-  let px = 0;
-  for (let s = 0; s < 3; s++) {
-    const segH = h / 3;
-    r.push(); r.translate(px, segH * (s + 0.5), 0); r.rotateZ(bend * (s + 1) * 0.4); r.cylinder(0.21 - s * 0.035, segH + 0.08, 7, { tile: T.bark }); r.pop();
-    px += Math.sin(bend * (s + 1) * 0.4) * segH * 0.85;
+  r.push(); r.translate(x, 0, z); r.rotateY(R.range(0, Math.PI * 2)); r.rotateZ(lean); r.rotateX(lean * 0.6);
+  // trunk: a chained arc of short tapering cylinders — each segment starts
+  // exactly where the last ended, in the same tangent direction, so the
+  // rings sit flush and the trunk reads as ONE smooth curve, never steps
+  const bend = R.range(0.05, 0.13) * (R.chance(0.5) ? 1 : -1);
+  const SEGS = 7, segH = h / SEGS;
+  let cr = 0.235;
+  r.push();
+  for (let s = 0; s < SEGS; s++) {
+    r.rotateZ((bend / SEGS) * (0.6 + (0.4 * s) / SEGS));
+    r.push(); r.translate(0, segH / 2, 0); r.cylinder(cr, segH * 1.3, 8, { tile: T.bark }); r.pop();
+    r.translate(0, segH, 0);
+    cr -= 0.013;
   }
-  r.translate(px, h, 0);
-  // crown: two layered rings of tapered box fronds with drooping tips + a spear
-  const frond = (yaw, tilt, len, wdt) => {
-    r.push(); r.rotateY(yaw); r.rotateZ(tilt);
-    r.push(); r.translate(0, len / 2, 0); r.box(wdt, len, 0.055, { tile: T.frond }); r.pop();
-    r.push(); r.translate(0, len, 0); r.rotateZ(0.62); r.translate(0, len * 0.21, 0); r.box(wdt * 0.68, len * 0.44, 0.045, { tile: T.frond }); r.pop();
-    r.pop();
+  // crown bulb: the single join every frond springs from
+  r.ball(0.27, 10, 7, T.bark, [0.72, 0.6, 0.44], 0, 0.85);
+  // fronds: ribbons that follow a drooping arc, textured with successive
+  // lengthwise slices of the leaf tile so the painted silhouette flows
+  // unbroken from the crown point to the tip
+  const frond = (yawA, tilt0, len, maxW, tintF, roll) => {
+    const N = 5, ds = len / N;
+    const cy = Math.cos(yawA), sy = Math.sin(yawA);
+    let px = 0, py = 0, pz = 0, ang = tilt0, prev = null;
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      const dir = [sy * Math.sin(ang), Math.cos(ang), cy * Math.sin(ang)];
+      const prof = Math.sin(Math.PI * Math.min(1, 0.08 + 0.9 * t));
+      const hw = (maxW * (0.7 + 0.3 * prof)) / 2;
+      const wx = [cy, 0, -sy]; // yaw-rotated X axis (the ribbon's width dir)
+      const cxv = [dir[1] * wx[2] - dir[2] * wx[1], dir[2] * wx[0] - dir[0] * wx[2], dir[0] * wx[1] - dir[1] * wx[0]];
+      const wv = [
+        wx[0] * Math.cos(roll) + cxv[0] * Math.sin(roll),
+        wx[1] * Math.cos(roll) + cxv[1] * Math.sin(roll),
+        wx[2] * Math.cos(roll) + cxv[2] * Math.sin(roll),
+      ];
+      const pt = { p: [px, py, pz], w: wv, hw, t };
+      if (prev) {
+        const tile = T.frond;
+        const vv = (tt) => tile.v0 + (tile.v1 - tile.v0) * tt;
+        const cA = [prev.p[0] - prev.w[0] * prev.hw, prev.p[1] - prev.w[1] * prev.hw, prev.p[2] - prev.w[2] * prev.hw];
+        const cB = [prev.p[0] + prev.w[0] * prev.hw, prev.p[1] + prev.w[1] * prev.hw, prev.p[2] + prev.w[2] * prev.hw];
+        const cC = [pt.p[0] + pt.w[0] * pt.hw, pt.p[1] + pt.w[1] * pt.hw, pt.p[2] + pt.w[2] * pt.hw];
+        const cD = [pt.p[0] - pt.w[0] * pt.hw, pt.p[1] - pt.w[1] * pt.hw, pt.p[2] - pt.w[2] * pt.hw];
+        const uvs = [[tile.u0, vv(prev.t)], [tile.u1, vv(prev.t)], [tile.u1, vv(pt.t)], [tile.u0, vv(pt.t)]];
+        r.quadUV([cA, cB, cC, cD], tile, tintF, 0, uvs);
+        r.quadUV([cB, cA, cD, cC], tile, tintF, 0, [uvs[1], uvs[0], uvs[3], uvs[2]]); // underside too: palms are seen from below
+      }
+      prev = pt;
+      px += dir[0] * ds; py += dir[1] * ds; pz += dir[2] * ds;
+      ang += ((0.42 + 0.5 * t) * 2.2 * ds) / len; // the droop accelerates toward the tip
+    }
   };
-  for (let i = 0; i < 5; i++) frond((i / 5) * Math.PI * 2 + R.range(-0.2, 0.2), 0.72 + R.range(-0.1, 0.14), R.range(1.8, 2.2), 0.3);
-  for (let i = 0; i < 6; i++) frond((i / 6) * Math.PI * 2 + 0.4 + R.range(-0.2, 0.2), 1.32 + R.range(-0.12, 0.2), R.range(2.3, 2.8), 0.34);
-  frond(R.range(0, 6.28), 0.22, 1.5, 0.22); // upright spear
-  for (let i = 0; i < 3; i++) { r.push(); r.translate(R.range(-0.2, 0.2), -0.22, R.range(-0.2, 0.2)); r.cylinder(0.11, 0.2, 6, { tile: T.bark }, [0.55, 0.45, 0.3]); r.pop(); }
+  const green = [1, 1, 1];
+  for (let i = 0; i < 7; i++) frond((i / 7) * Math.PI * 2 + R.range(-0.15, 0.15), 0.95 + R.range(-0.1, 0.12), R.range(2.6, 3.2), 1.0, green, (i % 2 ? 1 : -1) * R.range(0.3, 0.55));
+  for (let i = 0; i < 6; i++) frond((i / 6) * Math.PI * 2 + 0.45 + R.range(-0.15, 0.15), 0.68 + R.range(-0.08, 0.1), R.range(2.2, 2.7), 0.92, green, (i % 2 ? -1 : 1) * R.range(0.3, 0.55));
+  for (let i = 0; i < 2; i++) frond(R.range(0, 6.28), 0.22 + R.range(0, 0.1), R.range(1.5, 1.8), 0.6, [1.12, 1.06, 0.78], 0.3); // upright spears
+  for (let i = 0; i < 5; i++) frond((i / 5) * Math.PI * 2 + 0.3, 2.45 + R.range(-0.15, 0.15), R.range(1.0, 1.25), 0.7, [0.55, 0.46, 0.3], 0.2); // dead skirt hanging from the join
+  for (let i = 0; i < 5; i++) { // coconuts clustered at the crown join
+    const a = (i / 5) * Math.PI * 2 + 0.4;
+    r.push(); r.translate(Math.cos(a) * 0.17, -0.17, Math.sin(a) * 0.17); r.ball(0.115, 8, 6, T.bark, [0.5, 0.42, 0.26]); r.pop();
+  }
+  r.pop();
   r.pop();
   WORLD.colliders.push({ x0: x - 0.25, z0: z - 0.25, x1: x + 0.25, z1: z + 0.25 });
   WORLD.palms.push({ x, z });
@@ -144,8 +209,10 @@ function palm(r, T, R, x, z, lean = 0) {
 
 function lamp(r, T, x, z) {
   r.push(); r.translate(x, 0, z);
-  r.push(); r.translate(0, 2.6, 0); r.cylinder(0.07, 5.2, 6, { tile: T.gunMetal }, [0.4, 0.42, 0.45]); r.pop();
-  r.push(); r.translate(0, 5.25, 0); r.box(0.5, 0.12, 0.3, { tile: T.white }, [1.5, 1.35, 1.0], 0.4); r.pop();
+  r.push(); r.translate(0, 2.5, 0); r.cylinder(0.07, 5.0, 6, { tile: T.gunMetal }, [0.4, 0.42, 0.45]); r.pop();
+  r.push(); r.translate(0.28, 4.95, 0); r.rotateZ(-0.6); r.cylinder(0.045, 1.15, 6, { tile: T.gunMetal }, [0.4, 0.42, 0.45]); r.pop(); // arm curving out over the street
+  r.push(); r.translate(0.62, 5.34, 0); r.ball(0.17, 10, 8, T.white, [1.5, 1.35, 1.0], 0.4); r.pop(); // globe
+  r.push(); r.translate(0.62, 5.52, 0); r.cylinder(0.1, 0.1, 8, { tile: T.gunMetal }, [0.35, 0.36, 0.4]); r.pop(); // cap
   r.pop();
   WORLD.lamps.push({ x, z });
   WORLD.colliders.push({ x0: x - 0.12, z0: z - 0.12, x1: x + 0.12, z1: z + 0.12 });
@@ -255,6 +322,8 @@ export function buildWorld(r, T) {
     const { x, z } = W.hq, w = 34, d = 26, h = 17;
     r.push(); r.translate(x, 0, z);
     r.push(); r.translate(0, h / 2, 0); r.box(w, h, d, { tile: T.facade_concrete0 }, [0.92, 0.95, 1.02]); r.pop();
+    r.push(); r.translate(0, 0.57, 0); r.box(w + 0.6, 1.15, d + 0.6, { tile: T.concrete }, [0.8, 0.8, 0.78]); r.pop(); // plinth
+    r.push(); r.translate(0, h - 0.5, 0); r.box(w + 0.5, 0.42, d + 0.5, { tile: T.concrete }, [0.85, 0.86, 0.88]); r.pop(); // cornice band
     r.push(); r.translate(0, h + 0.25, 0); r.box(w + 0.8, 0.5, d + 0.8, { tile: T.roof }); r.pop();
     // rooftop helipad on the east side (clear of the heel sign): dark disc, segmented white ring, H, green edge strobes
     r.push(); r.translate(7, h + 0.58, -2); r.cylinder(5.6, 0.2, 18, { tile: T.asphalt }, [0.45, 0.45, 0.48]); r.pop();
@@ -309,7 +378,8 @@ export function buildWorld(r, T) {
       // striped roof wedge sits flush on the stall top (it floated 0.45 above
       // it before) and two slim posts carry its overhanging front corners
       r.translate(0, 2.3, 0); r.wedge(5.2, 1.0, 4.0, { tile: T.awningRed }); r.pop();
-      for (const px of [-2.45, 2.45]) { r.push(); r.translate(sx + px, P.deckY + 1.15, sz + 1.85); r.box(0.1, 2.3, 0.1, { tile: T.wood }, [0.6, 0.5, 0.38]); r.pop(); }
+      for (const px of [-2.45, 2.45]) { r.push(); r.translate(sx + px, P.deckY + 1.15, sz + 1.85); r.cylinder(0.055, 2.3, 6, { tile: T.wood }, [0.6, 0.5, 0.38]); r.pop(); }
+      r.push(); r.translate(sx, P.deckY + 3.38, sz - 2.0); r.ball(0.13, 8, 6, T.white, [0.85, 0.3, 0.25]); r.pop(); // roof finial
       WORLD.colliders.push({ x0: sx - 2.3, z0: sz - 1.7, x1: sx + 2.3, z1: sz + 1.7 });
     }
     // string light poles along the pier
@@ -352,7 +422,9 @@ export function buildWorld(r, T) {
   for (let i = 0; i < 26; i++) {
     const cx = R.range(146, 214), cz = R.range(-96, 96), rot = R.chance(0.5) ? 0 : Math.PI / 2;
     const lvl = R.chance(0.35) ? 1 : 0;
-    r.push(); r.translate(cx, 1.3 + lvl * 2.6, cz); r.rotateY(rot); r.box(6, 2.6, 2.4, { tile: T.corrugated }, R.pick(CONT_TINTS)); r.pop();
+    r.push(); r.translate(cx, 1.3 + lvl * 2.6, cz); r.rotateY(rot); r.box(6, 2.6, 2.4, { tile: T.corrugated }, R.pick(CONT_TINTS));
+    for (const px of [-2.92, 2.92]) for (const pz of [-1.12, 1.12]) { r.push(); r.translate(px, 0, pz); r.box(0.2, 2.64, 0.2, { tile: T.corrugated }, [0.3, 0.3, 0.32]); r.pop(); } // corner castings
+    r.pop();
     if (!lvl) WORLD.colliders.push({ x0: cx - 3.2, z0: cz - 3.2, x1: cx + 3.2, z1: cz + 3.2 });
   }
   for (let i = 0; i < 3; i++) {
@@ -366,8 +438,8 @@ export function buildWorld(r, T) {
   {
     const { x, z } = W.observatory;
     r.push(); r.translate(x, 3.2, z); r.cylinder(9, 6.4, 16, { tile: T.concrete }, [0.88, 0.87, 0.84]); r.pop();
-    r.push(); r.translate(x, 8.6, z); r.scale(1, 0.75, 1); r.cylinder(7.6, 6.4, 16, { tile: T.corrugated }, [0.62, 0.66, 0.7], 0, T.corrugated); r.pop(); // dome
-    r.push(); r.translate(x, 9.6, z - 2); r.rotateX(0.5); r.box(1.6, 0.5, 6.4, { tile: T.gunMetal }, [0.3, 0.3, 0.34]); r.pop(); // telescope slit housing
+    r.push(); r.translate(x, 7.3, z); r.ball(7.7, 18, 10, T.corrugated, [0.62, 0.66, 0.7], 0, 0.6); r.pop(); // true dome
+    r.push(); r.translate(x, 10.4, z - 1.6); r.rotateX(0.55); r.box(1.6, 0.5, 5.0, { tile: T.gunMetal }, [0.3, 0.3, 0.34]); r.pop(); // telescope slit housing
     r.push(); r.translate(x + 12, 1.4, z + 6); r.box(10, 2.8, 7, { tile: T.facade_concrete1 }); r.translate(0, 2.2, 0); r.plane(9, 1.7, T.signObservatory, [1, 1, 1], 0.2); r.pop();
     WORLD.colliders.push({ x0: x - 9, z0: z - 9, x1: x + 9, z1: z + 9 });
     WORLD.signs.push({ x, z, label: 'Observatory' });
@@ -418,6 +490,7 @@ export function buildWorld(r, T) {
   for (let i = 0; i < 26; i++) { // benches + bins on the promenade
     const bx = R.range(-215, 215), bz = -99.5;
     r.push(); r.translate(bx, 0.45, bz); r.box(2.2, 0.1, 0.55, { tile: T.wood }, [0.72, 0.6, 0.42]); r.translate(0, -0.4, 0); r.box(2.0, 0.4, 0.45, { tile: T.gunMetal }, [0.3, 0.32, 0.3]); r.pop();
+    for (const by of [0.82, 1.06]) { r.push(); r.translate(bx, by, bz + 0.3); r.rotateX(-0.16); r.box(2.2, 0.09, 0.05, { tile: T.wood }, [0.72, 0.6, 0.42]); r.pop(); } // backrest slats
     if (i % 2) { r.push(); r.translate(bx + 2, 0.5, bz); r.cylinder(0.32, 1.0, 8, { tile: T.corrugated }, [0.35, 0.42, 0.38]); r.pop(); }
   }
   r.use('frame');
@@ -445,11 +518,11 @@ export function drawWheel(r, T, t) {
   for (let i = 0; i < 8; i++) {
     const th = (i / 8) * Math.PI * 2 + rot;
     const gx = x - Math.sin(th) * rad, gy = cy + Math.cos(th) * rad;
-    r.push(); r.translate(gx, gy - 1.5, z);
+    r.push(); r.translate(gx, gy, z); r.rotateZ(Math.sin(t * 0.9 + i * 1.35) * 0.045); r.translate(0, -1.5, 0); // gondolas sway gently on their hangers
     r.push(); r.translate(0, 1.35, 0); r.box(0.2, 1.1, 0.2, { tile: T.gunMetal }, [0.6, 0.62, 0.65]); r.pop();
     r.box(2.0, 0.75, 2.0, { tile: T.carGlass }, [1.05, 1.05, 1.05]);
+    r.push(); r.translate(0, 0.66, 0); r.rotateZ(Math.PI / 2); r.scale(0.38, 1, 1); r.cylinder(1.08, 2.1, 12, { tile: T.white }, [0.92, 0.9, 0.86]); r.pop(); // barrel-vault roof
     r.translate(0, -0.62, 0); r.box(2.05, 0.5, 2.05, { tile: T.white }, gondolaTints[i]);
-    r.translate(0, 1.62, 0); r.box(2.25, 0.24, 2.25, { tile: T.white }, [0.92, 0.9, 0.86]);
     r.pop();
     const chase = 0.5 + 0.5 * Math.sin(t * 6 + i * 1.7);
     r.push(); r.translate(gx, gy + 0.4, z); r.billboard(1.6, T.glow, [1.0, 0.75, 0.5], 0.25 + chase * 0.3); r.pop();

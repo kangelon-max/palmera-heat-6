@@ -296,6 +296,79 @@ export class Renderer {
       }
     }
   }
+  /** Quad with explicit per-corner UVs and a computed flat normal (local
+   *  space). corners: 4 points wound CCW seen from the lit side;
+   *  uvs: 4 matching [u, v] pairs in atlas space. */
+  quadUV(corners, tile, tint, emissive, uvs) {
+    const m = this.top();
+    const [a, b, , d] = corners;
+    const ux = b[0] - a[0], uy = b[1] - a[1], uz = b[2] - a[2];
+    const vx = d[0] - a[0], vy = d[1] - a[1], vz = d[2] - a[2];
+    const wn = transformNormal(m, [uy * vz - uz * vy, uz * vx - ux * vz, ux * vy - uy * vx]);
+    const [tr, tg, tb] = tint;
+    const pts = corners.map((p) => transformPoint(m, p));
+    for (const i of [0, 1, 2, 0, 2, 3]) {
+      const p = pts[i];
+      this.sink.push(p[0], p[1], p[2], wn[0], wn[1], wn[2], uvs[i][0], uvs[i][1], tr, tg, tb, emissive);
+    }
+  }
+  /** Lofted hull through cross-sections ordered front (+Z) to back (-Z) —
+   *  the de-boxing workhorse: stacked sections with varying width and top
+   *  height read as curved bodywork, not crates. Section: {z, hw, yb, yt,
+   *  tw, top} — half width at the belt, bottom y, top y, half width at the
+   *  top edge (tw defaults to hw); `top` overrides the top-surface tile for
+   *  the segment LEAVING this section (windshields, rear glass). mats:
+   *  {side, top, cap} tile records; side/top UVs run along the whole loft
+   *  once, so panel art stays continuous. */
+  loft(sections, mats, tint = [1, 1, 1], emissive = 0) {
+    const S = sections.map((s) => ({ tw: s.hw, ...s }));
+    // a surface spec is a tile record, or {tile, tint} to override the tint
+    const spec = (s) => (s && typeof s.u0 === 'number' ? { tile: s, tint } : { tile: s.tile, tint: s.tint || tint });
+    const zF = S[0].z, span = (zF - S[S.length - 1].z) || 1;
+    const fu = (z) => (zF - z) / span; // 0 at the nose, 1 at the tail
+    const uv = (tile, u, v) => [tile.u0 + (tile.u1 - tile.u0) * u, tile.v0 + (tile.v1 - tile.v0) * v];
+    const side = spec(mats.side), capS = spec(mats.cap);
+    for (let i = 0; i < S.length - 1; i++) {
+      const a = S[i], b = S[i + 1], ua = fu(a.z), ub = fu(b.z);
+      // right side (+X): front-bottom, back-bottom, back-top, front-top
+      this.quadUV([[a.hw, a.yb, a.z], [b.hw, b.yb, b.z], [b.tw, b.yt, b.z], [a.tw, a.yt, a.z]], side.tile, side.tint, emissive,
+        [uv(side.tile, ua, 0), uv(side.tile, ub, 0), uv(side.tile, ub, 1), uv(side.tile, ua, 1)]);
+      // left side (-X): back-bottom, front-bottom, front-top, back-top
+      this.quadUV([[-b.hw, b.yb, b.z], [-a.hw, a.yb, a.z], [-a.tw, a.yt, a.z], [-b.tw, b.yt, b.z]], side.tile, side.tint, emissive,
+        [uv(side.tile, ub, 0), uv(side.tile, ua, 0), uv(side.tile, ua, 1), uv(side.tile, ub, 1)]);
+      // top: front-left, front-right, back-right, back-left
+      const top = spec(a.top || mats.top);
+      this.quadUV([[-a.tw, a.yt, a.z], [a.tw, a.yt, a.z], [b.tw, b.yt, b.z], [-b.tw, b.yt, b.z]], top.tile, top.tint, emissive,
+        [uv(top.tile, 0, ua), uv(top.tile, 1, ua), uv(top.tile, 1, ub), uv(top.tile, 0, ub)]);
+      // bottom: keeps the hull watertight from below
+      this.quadUV([[a.hw, a.yb, a.z], [-a.hw, a.yb, a.z], [-b.hw, b.yb, b.z], [b.hw, b.yb, b.z]], capS.tile, capS.tint, emissive,
+        [uv(capS.tile, 0, ua), uv(capS.tile, 1, ua), uv(capS.tile, 1, ub), uv(capS.tile, 0, ub)]);
+    }
+    const cap = (s, flip) => {
+      const c = [[-s.hw, s.yb, s.z], [s.hw, s.yb, s.z], [s.tw, s.yt, s.z], [-s.tw, s.yt, s.z]];
+      if (flip) c.reverse();
+      this.quadUV(c, capS.tile, capS.tint, emissive, [uv(capS.tile, 0, 0), uv(capS.tile, 1, 0), uv(capS.tile, 1, 1), uv(capS.tile, 0, 1)]);
+    };
+    cap(S[0], false); cap(S[S.length - 1], true);
+  }
+  /** Ball of radius r (squashed by sy on Y), centred at origin: a ring
+   *  loft with flat-shaded facets — reads round at game scale (heads,
+   *  coconuts, lamp globes, domes). */
+  ball(r, wseg, hseg, tile, tint = [1, 1, 1], emissive = 0, sy = 1) {
+    const uv = (u, v) => [tile.u0 + (tile.u1 - tile.u0) * u, tile.v0 + (tile.v1 - tile.v0) * v];
+    let prev = null;
+    for (let j = 0; j <= hseg; j++) {
+      const ph = (j / hseg) * Math.PI, rr = Math.sin(ph) * r, y = Math.cos(ph) * r * sy;
+      const ring = [];
+      for (let i = 0; i < wseg; i++) { const a = (i / wseg) * Math.PI * 2; ring.push([Math.cos(a) * rr, y, Math.sin(a) * rr]); }
+      if (prev) for (let i = 0; i < wseg; i++) {
+        const i2 = (i + 1) % wseg, u2 = i2 === 0 ? 1 : i2 / wseg;
+        this.quadUV([prev.ring[i], prev.ring[i2], ring[i2], ring[i]], tile, tint, emissive,
+          [uv(i / wseg, prev.v), uv(u2, prev.v), uv(u2, j / hseg), uv(i / wseg, j / hseg)]);
+      }
+      prev = { ring, v: j / hseg };
+    }
+  }
   /** Camera-facing glow billboard (sprite sink), size s, centred at origin of current transform. */
   billboard(s, tile, tint, alpha) {
     const m = this.top();

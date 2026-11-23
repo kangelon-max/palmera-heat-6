@@ -41,17 +41,19 @@ export function drawPerson(r, T, o, pose = {}) {
   for (const side of [-1, 1]) {
     r.push();
     r.translate(side * 0.105, 0.98, 0);
+    r.ball(0.088, 8, 6, T.clothPlain, o.pantsTint); // hip joint mass
     if (pose.sit) r.rotateX(-1.5);
     else if (pose.swim) r.rotateX(Math.sin(walk + (side > 0 ? Math.PI : 0)) * 0.5); // flutter kick
     else r.rotateX(swing * (side > 0 ? 1 : -1));
     limb(r, 0.48, 0.155, 0.17, pantsM, o.pantsTint);
     r.translate(0, -0.48, 0);
+    r.ball(0.062, 8, 6, o.shorts ? skin : T.clothPlain, o.shorts ? SKIN_TINTS[o.skin] : o.pantsTint); // knee
     if (pose.sit) r.rotateX(1.5);
     else if (!pose.swim) r.rotateX(Math.max(0, -Math.sin(walk + (side > 0 ? 0 : Math.PI))) * 0.5);
     if (o.shorts) limb(r, 0.44, 0.11, 0.12, { tile: skin }, SKIN_TINTS[o.skin]);
     else limb(r, 0.44, 0.12, 0.13, pantsM, o.pantsTint);
-    r.translate(0, -0.44, 0.02);
-    r.box(0.11, 0.07, 0.24, { tile: T.white }, o.shoeTint || [0.2, 0.19, 0.2]); // shoe
+    r.translate(0, -0.478, 0.02);
+    r.wedge(0.115, 0.078, 0.25, { tile: T.white }, o.shoeTint || [0.2, 0.19, 0.2]); // shoe: heeled back, toe sloping down
     r.pop();
   }
 
@@ -64,6 +66,7 @@ export function drawPerson(r, T, o, pose = {}) {
   r.push(); r.translate(0, 0.22, 0); r.box(0.385, 0.2, 0.215, shirtM, o.shirtTint); r.pop(); // waist
   r.push(); r.translate(0, 0.42, 0); r.box(0.46, 0.26, 0.25, shirtM, o.shirtTint); r.pop(); // chest
   r.push(); r.translate(0, 0.585, 0); r.box(0.5, 0.09, 0.26, shirtM, o.shirtTint); r.pop(); // shoulders
+  r.push(); r.translate(0, 0.645, 0); r.box(0.21, 0.05, 0.21, shirtM, o.shirtTint.map((v) => v * 0.8)); r.pop(); // collar
   r.push(); r.translate(0, -0.03, 0); r.box(0.4, 0.06, 0.22, { tile: T.white }, [0.16, 0.13, 0.1]); r.pop(); // belt
 
   // ---- arms + weapon ----
@@ -71,6 +74,7 @@ export function drawPerson(r, T, o, pose = {}) {
   for (const side of [-1, 1]) {
     r.push();
     r.translate(side * 0.28, 0.52, 0);
+    r.ball(0.078, 8, 6, T[o.shirt], o.shirtTint); // shoulder mass rounds the joint
     if (pose.armsUp) { r.rotateZ(side * -2.6); r.rotateX(Math.sin(walk * 0.5 + side) * 0.14); }
     else if (aim) { r.rotateX(-1.32 + (pose.aimPitch || 0)); r.rotateY(side * -0.16); }
     else if (carry) { r.rotateX(side > 0 ? -0.62 : -0.95); r.rotateZ(side * 0.18); }
@@ -80,6 +84,7 @@ export function drawPerson(r, T, o, pose = {}) {
     else r.rotateX(-swing * (side > 0 ? 1 : -1) * 0.9);
     limb(r, 0.3, 0.105, 0.115, shirtM, o.shirtTint); // upper arm (sleeve)
     r.translate(0, -0.3, 0);
+    r.ball(0.055, 8, 6, T[o.shirt], o.shirtTint); // elbow
     if (aim) r.rotateX(-0.12);
     else if (carry) r.rotateX(side > 0 ? -0.5 : -0.25);
     else if (pose.phone && side > 0) r.rotateX(-1.85);
@@ -114,10 +119,11 @@ export function drawPerson(r, T, o, pose = {}) {
   // ---- head ----
   r.push();
   r.translate(0, 0.58, 0);
-  r.push(); r.translate(0, 0.045, 0); r.box(0.13, 0.09, 0.13, { tile: skin }, SKIN_TINTS[o.skin]); r.pop(); // neck
+  r.push(); r.translate(0, 0.045, 0); r.cylinder(0.06, 0.11, 8, { tile: skin }, SKIN_TINTS[o.skin]); r.pop(); // neck
   r.translate(0, 0.21, 0);
   const headMat = { front: face, back: T.hairTile, left: skin, right: skin, top: T.hairTile, bottom: skin };
   r.box(0.235, 0.29, 0.25, headMat, SKIN_TINTS[o.skin]);
+  r.push(); r.translate(0, 0.135, -0.008); r.ball(0.128, 10, 6, o.hair === 'bald' ? skin : T.hairTile, o.hair === 'bald' ? SKIN_TINTS[o.skin] : (o.hairTint || HAIR_COLORS[0]), 0, 0.55); r.pop(); // rounded crown
   // hair styles
   const hc = o.hairTint || HAIR_COLORS[0];
   if (o.hair === 'cap') { r.push(); r.translate(0, 0.1, 0); r.box(0.25, 0.09, 0.27, { tile: T.clothPlain }, o.capTint || [0.5, 0.2, 0.16]); r.translate(0, -0.03, 0.17); r.box(0.24, 0.03, 0.12, { tile: T.clothPlain }, o.capTint || [0.5, 0.2, 0.16]); r.pop(); }
@@ -170,12 +176,15 @@ export function drawHelicopter(r, T, o = {}) {
     r.push(); r.translate(sx, -1.12, 0.15); r.rotateX(Math.PI / 2); r.cylinder(0.06, 3.6, 6, metal, [0.35, 0.36, 0.38]); r.pop();
     for (const sz of [-0.9, 1.1]) { r.push(); r.translate(sx * 0.82, -0.82, sz); r.rotateZ(sx * 0.5); r.box(0.07, 0.62, 0.07, metal, [0.35, 0.36, 0.38]); r.pop(); }
   }
-  // fuselage: belly pan + glasshouse cabin (glass front and sides, solid roof)
-  r.push(); r.translate(0, -0.28, 0); r.box(1.7, 0.62, 3.5, { tile: T.white }, body); r.pop();
-  const cabinM = { front: T.carGlass, back: T.white, left: T.carGlass, right: T.carGlass, top: T.white, bottom: T.white };
-  r.push(); r.translate(0, 0.42, 0.45); r.box(1.62, 0.95, 2.3, cabinM, body); r.pop();
-  r.push(); r.translate(0, -0.02, 1.98); r.rotateX(0.5); r.box(1.5, 0.72, 0.5, { tile: T.white }, body); r.pop(); // sloped nose
-  if (o.livery !== false) for (const sx of [-1, 1]) { r.push(); r.translate(sx * 0.87, -0.2, 0.1); r.rotateY(sx * Math.PI / 2); r.plane(2.6, 0.5, T.pbpdSide, [1, 1, 1], 0.1); r.pop(); }
+  // fuselage: one lofted shell — rounded nose, glass brow, tapered tail
+  r.loft([
+    { z: 2.2, hw: 0.40, yb: -0.52, yt: 0.22, tw: 0.34 },
+    { z: 1.75, hw: 0.78, yb: -0.62, yt: 0.74, tw: 0.66, top: T.carGlass },
+    { z: 0.85, hw: 0.86, yb: -0.60, yt: 0.94, tw: 0.74 },
+    { z: -0.45, hw: 0.85, yb: -0.55, yt: 0.96, tw: 0.74 },
+    { z: -1.65, hw: 0.60, yb: -0.28, yt: 0.68, tw: 0.50 },
+  ], { side: T.white, top: T.white, cap: T.white }, body);
+  if (o.livery !== false) for (const sx of [-1, 1]) { r.push(); r.translate(sx * 0.865, -0.1, 0.1); r.rotateY(sx * Math.PI / 2); r.plane(2.6, 0.5, T.pbpdSide, [1, 1, 1], 0.1); r.pop(); }
   // engine deck, exhausts, mast
   r.push(); r.translate(0, 1.02, -0.5); r.box(1.15, 0.34, 1.5, metal, [0.3, 0.31, 0.34]); r.pop();
   for (const sx of [-1, 1]) { r.push(); r.translate(sx * 0.62, 0.98, -1.05); r.box(0.22, 0.2, 0.6, metal, dark); r.pop(); }
@@ -261,8 +270,10 @@ export function drawVehicle(r, T, kind, o = {}) {
   if (kind === 'bike') {
     r.push(); r.translate(0, 0.33, 0.85); r.rotateX(Math.PI / 2); r.cylinder(0.33, 0.09, 12, { tile: T.tire }, [1, 1, 1], 0, T.hub); r.pop();
     r.push(); r.translate(0, 0.31, -0.8); r.rotateX(Math.PI / 2); r.cylinder(0.31, 0.09, 12, { tile: T.tire }, [1, 1, 1], 0, T.hub); r.pop();
-    r.push(); r.translate(0, 0.55, 0.1); r.rotateX(0.15); r.box(0.2, 0.16, 1.15, paint, o.tint || [0.55, 0.16, 0.14]); r.pop(); // frame/fairing
-    r.push(); r.translate(0, 0.72, 0.62); r.rotateX(-0.5); r.wedge(0.34, 0.3, 0.4, paint, o.tint || [0.55, 0.16, 0.14]); r.pop(); // front fairing
+    r.push(); r.translate(0, 0.52, 0.1); r.rotateX(0.15); r.box(0.3, 0.34, 1.3, paint, o.tint || [0.55, 0.16, 0.14]); r.pop(); // frame/fairing: full side mass between the wheels
+    r.push(); r.translate(0, 0.68, 0.12); r.ball(0.19, 10, 7, T.white, o.tint || [0.55, 0.16, 0.14], 0, 0.72); r.pop(); // rounded fuel tank
+    r.push(); r.translate(0, 0.74, -0.52); r.ball(0.15, 10, 7, T.white, o.tint || [0.55, 0.16, 0.14], 0, 0.6); r.pop(); // tail hump
+    r.push(); r.translate(0, 0.72, 0.62); r.rotateX(-0.5); r.wedge(0.44, 0.42, 0.5, paint, o.tint || [0.55, 0.16, 0.14]); r.pop(); // front fairing
     r.push(); r.translate(0, 0.78, -0.25); r.box(0.3, 0.09, 0.55, { tile: T.clothDark }, [0.15, 0.15, 0.16]); r.pop(); // seat
     r.push(); r.translate(0, 0.62, 0.55); r.box(0.36, 0.05, 0.06, { tile: T.gunMetal }); r.pop(); // bars
     r.push(); r.translate(0, 0.66, 0.88); r.box(0.17, 0.11, 0.04, { tile: T.white }, [1.5, 1.45, 1.2], 0.35); r.pop(); // headlight lens
@@ -272,108 +283,151 @@ export function drawVehicle(r, T, kind, o = {}) {
     return;
   }
   if (kind === 'boat') {
-    r.push(); r.translate(0, 0.25, 0); r.wedge(4.6, 0.8, 1.9, paint, o.tint || [0.8, 0.78, 0.74]); r.rotateY(Math.PI); r.pop();
-    r.push(); r.translate(0, 0.55, -0.4); r.box(3.4, 0.5, 1.7, paint, o.tint || [0.8, 0.78, 0.74]); r.pop();
-    r.push(); r.translate(0, 1.0, -0.7); r.box(1.7, 0.55, 1.2, glass); r.pop();
-    r.push(); r.translate(0, 1.35, -0.7); r.box(2.0, 0.08, 1.4, paint, [0.4, 0.36, 0.32]); r.pop();
-    r.push(); r.translate(0.8, 1.1, 0.6); r.box(0.08, 1.1, 0.08, { tile: T.gunMetal }); r.pop(); // mast
-    r.push(); r.translate(0, 0.32, 0); r.box(4.66, 0.1, 1.96, paint, [0.62, 0.2, 0.16]); r.pop(); // hull stripe / rub rail
-    for (const sz of [-1, 1]) { // deck rails on posts
-      r.push(); r.translate(-0.3, 0.98, sz * 0.8); r.box(3.0, 0.045, 0.045, { tile: T.gunMetal }, [0.75, 0.76, 0.78]); r.pop();
-      for (const px of [-1.7, -0.3, 1.1]) { r.push(); r.translate(px, 0.76, sz * 0.8); r.box(0.04, 0.44, 0.04, { tile: T.gunMetal }, [0.75, 0.76, 0.78]); r.pop(); }
+    const bt = o.tint || [0.8, 0.78, 0.74];
+    r.push(); r.rotateY(Math.PI / 2); // the loft runs bow-to-stern along local +Z (world +X)
+    // hull: lofted — raked narrow bow, rounded bilges, flat transom
+    r.loft([
+      { z: 2.32, hw: 0.16, yb: 0.52, yt: 0.92, tw: 0.13 },
+      { z: 1.85, hw: 0.60, yb: 0.16, yt: 0.90, tw: 0.52 },
+      { z: 0.85, hw: 0.88, yb: 0.0, yt: 0.86, tw: 0.79 },
+      { z: -0.85, hw: 0.92, yb: 0.0, yt: 0.84, tw: 0.83 },
+      { z: -1.85, hw: 0.90, yb: 0.08, yt: 0.82, tw: 0.81 },
+      { z: -2.32, hw: 0.83, yb: 0.2, yt: 0.80, tw: 0.76 },
+    ], { side: T.white, top: T.white, cap: T.white }, bt);
+    r.push(); r.translate(0, 0.32, 0); r.box(1.96, 0.1, 4.66, paint, [0.62, 0.2, 0.16]); r.pop(); // hull stripe / rub rail (local frame: length runs along Z)
+    r.push(); r.translate(0, 0.9, -0.45); r.box(1.55, 0.34, 3.1, paint, bt); r.pop(); // deckhouse base
+    r.push(); r.translate(0, 1.32, -0.75); r.box(1.25, 0.52, 1.9, glass); r.pop(); // cabin glass
+    r.push(); r.translate(0, 1.62, -0.75); r.box(1.5, 0.08, 2.2, paint, [0.4, 0.36, 0.32]); r.pop(); // cabin roof
+    r.push(); r.translate(0.55, 1.35, 0.75); r.box(0.07, 1.15, 0.07, { tile: T.gunMetal }); r.pop(); // mast
+    for (const sx of [-1, 1]) { // deck rails on posts
+      r.push(); r.translate(sx * 0.8, 1.12, -0.3); r.box(0.045, 0.045, 3.0, { tile: T.gunMetal }, [0.75, 0.76, 0.78]); r.pop();
+      for (const pz of [-1.7, -0.3, 1.1]) { r.push(); r.translate(sx * 0.8, 0.9, pz); r.box(0.04, 0.44, 0.04, { tile: T.gunMetal }, [0.75, 0.76, 0.78]); r.pop(); }
     }
-    r.push(); r.translate(-1.9, 0.85, 0); r.cylinder(0.16, 0.07, 10, { tile: T.white }, [0.9, 0.35, 0.2]); r.pop(); // life ring on the stern deck
+    r.push(); r.translate(0, 1.32, -1.73); r.rotateX(Math.PI / 2); r.cylinder(0.17, 0.07, 10, { tile: T.white }, [0.9, 0.35, 0.2]); r.pop(); // life ring on the cabin back
+    r.pop();
     return;
   }
-  const L = kind === 'truck' ? 6.4 : 4.5, Wd = kind === 'truck' ? 2.3 : 1.82;
+  const L = kind === 'truck' ? 6.4 : 4.5;
   const tint = o.tint || [0.5, 0.52, 0.55];
   if (kind === 'truck') {
-    const cabMat = { front: T.windshield, back: T.white, left: T.cabinSide, right: T.cabinSide, top: T.white, bottom: T.white };
-    r.push(); r.translate(0, 0.85, 1.9); r.box(2.2, 1.5, 1.6, cabMat, tint); r.pop(); // cab with glass + interior
-    r.push(); r.translate(0, 1.25, 2.68); r.box(1.9, 0.55, 0.14, glass); r.pop();
-    r.push(); r.translate(0, 0.52, 2.72); r.plane(1.3, 0.34, T.grille); r.pop(); // grille
-    r.push(); r.translate(0, 0.24, 2.78); r.box(2.24, 0.22, 0.18, { tile: T.white }, [0.16, 0.16, 0.18]); r.pop(); // bumper
+    // cab as a loft: rounded nose cap, raked windshield, level roof
+    r.loft([
+      { z: 2.74, hw: 1.0, yb: 0.34, yt: 0.98, tw: 0.96 },
+      { z: 2.58, hw: 1.08, yb: 0.26, yt: 1.52, tw: 1.02, top: T.windshield },
+      { z: 2.02, hw: 1.08, yb: 0.26, yt: 1.8, tw: 1.02 },
+      { z: 1.18, hw: 1.08, yb: 0.26, yt: 1.82, tw: 1.02 },
+    ], { side: T.cabinSide, top: T.white, cap: T.white }, tint);
+    r.push(); r.translate(0, 0.62, 2.755); r.plane(1.3, 0.34, T.grille); r.pop(); // grille on the nose cap
+    r.push(); r.translate(0, 0.26, 2.8); r.box(2.24, 0.22, 0.18, { tile: T.white }, [0.16, 0.16, 0.18]); r.pop(); // bumper
+    r.push(); r.translate(0, 1.9, 2.32); r.rotateX(0.28); r.box(2.0, 0.06, 0.34, paint, tint); r.pop(); // sun visor
     for (const sx of [-1, 1]) {
-      r.push(); r.translate(sx * 0.72, 0.62, 2.72); r.box(0.4, 0.16, 0.03, { tile: T.white }, [1.5, 1.45, 1.2], 0.35); r.pop(); // headlights
-      r.push(); r.translate(sx * 1.16, 1.3, 2.4); r.box(0.06, 0.16, 0.22, paint, tint); r.pop(); // mirrors
-      r.push(); r.translate(sx * 0.5, 0.6, -3.06); r.box(0.42, 0.14, 0.03, { tile: T.white }, [1.1, 0.25, 0.2], 0.3); r.pop(); // tail lights
+      r.push(); r.translate(sx * 0.74, 0.68, 2.76); r.box(0.42, 0.16, 0.04, { tile: T.white }, [1.5, 1.45, 1.2], 0.35); r.pop(); // headlights
+      r.push(); r.translate(sx * 1.13, 1.35, 2.45); r.box(0.06, 0.18, 0.24, paint, tint); r.pop(); // mirrors
+      r.push(); r.translate(sx * 0.5, 0.62, -3.06); r.box(0.42, 0.14, 0.03, { tile: T.white }, [1.1, 0.25, 0.2], 0.3); r.pop(); // tail lights
     }
     const cargoMat = { front: T.corrugated, back: T.corrugated, left: T.truckSide, right: T.truckSide, top: T.corrugated, bottom: T.corrugated };
     r.push(); r.translate(0, 1.45, -1.15); r.box(2.3, 2.3, 3.6, cargoMat, [0.98, 0.98, 0.98]); r.pop(); // cargo with flank art
+    r.push(); r.translate(0, 2.58, 0.63); r.rotateZ(Math.PI / 2); r.cylinder(0.2, 2.3, 10, { tile: T.corrugated }, [0.9, 0.9, 0.9]); r.pop(); // rounded front-top edge
     r.push(); r.translate(0, 0.32, 0); r.box(2.0, 0.3, 6.2, { tile: T.white }, [0.16, 0.16, 0.17]); r.pop();
     wheel(-1.05, 2.1, true); wheel(1.05, 2.1, true); wheel(-1.05, -1.9, true); wheel(1.05, -1.9, true);
   } else {
     const flank = kind === 'taxi' ? T.carFlankTaxi : kind === 'stock' ? T.carFlankStock : T.carFlank;
-    const bodyMat = { front: T.white, back: T.white, left: flank, right: flank, top: T.white, bottom: T.white };
-    const glassM = { tile: T.carGlass };
     const darkM = { tile: T.white };
     const dark = [0.13, 0.13, 0.15];
-    const W = 1.88; // the whole fleet wears a sports-coupe shell now: low, wide, planted
-    // ---- hull: low main body, hood wedging down to a sharp nose ----
-    r.push(); r.translate(0, 0.46, -0.42); r.box(W, 0.56, L - 0.85, bodyMat, tint); r.pop(); // main hull, panelled flanks
-    r.push(); r.translate(0, 0.44, L / 2 - 0.44); r.wedge(W * 0.97, 0.33, 0.92, paint, tint); r.pop(); // sloped hood
-    r.push(); r.translate(0, 0.3, L / 2 + 0.03); r.box(W * 0.96, 0.3, 0.16, darkM, dark); r.pop(); // front intake
-    r.push(); r.translate(0, 0.1, L / 2 + 0.08); r.box(W * 1.0, 0.07, 0.42, darkM, dark); r.pop(); // splitter
-    for (const sx of [-1, 1]) {
-      r.push(); r.translate(sx * W * 0.28, 0.56, L / 2 + 0.1); r.box(0.54, 0.07, 0.05, { tile: T.white }, [1.6, 1.55, 1.35], 0.55); r.pop(); // slim LED headlights
-      for (const wz of [L / 2 - 0.85, -L / 2 + 0.85]) { r.push(); r.translate(sx * (W / 2 + 0.02), 0.52, wz); r.box(0.09, 0.36, 1.06, paint, tint.map((v) => v * 0.92)); r.pop(); } // fender flares
-      r.push(); r.translate(sx * (W / 2 + 0.01), 0.19, -0.2); r.box(0.05, 0.15, 2.1, darkM, dark); r.pop(); // side skirt
-      r.push(); r.translate(sx * (W / 2 + 0.005), 0.52, -1.18); r.box(0.04, 0.2, 0.52, darkM, dark); r.pop(); // rear intake scoop
-      r.push(); r.translate(sx * (W / 2 + 0.07), 1.02, 0.28); r.box(0.05, 0.09, 0.2, paint, tint); r.pop(); // mirror
-    }
-    // low-profile sports wheels on spoked hubs
-    const wheelS = (x, z) => { r.push(); r.translate(x, 0.37, z); r.rotateZ(Math.PI / 2); r.rotateY(spin); r.cylinder(0.37, 0.27, 14, { tile: T.tire }, [1, 1, 1], 0, T.hub); r.pop(); };
-    wheelS(-W / 2 - 0.01, L / 2 - 0.85); wheelS(W / 2 + 0.01, L / 2 - 0.85); wheelS(-W / 2 - 0.01, -L / 2 + 0.85); wheelS(W / 2 + 0.01, -L / 2 + 0.85);
+    // ---- hull: a lofted shell — the silhouette flows nose -> fenders ->
+    // beltline -> haunches -> tail, no flat slab anywhere ----
+    r.loft([
+      { z: 2.36, hw: 0.40, yb: 0.42, yt: 0.52, tw: 0.36 },
+      { z: 2.27, hw: 0.68, yb: 0.30, yt: 0.58, tw: 0.62 },
+      { z: 2.08, hw: 0.85, yb: 0.24, yt: 0.62, tw: 0.79 },
+      { z: 1.55, hw: 0.94, yb: 0.19, yt: 0.71, tw: 0.88 },
+      { z: 0.85, hw: 0.92, yb: 0.18, yt: 0.77, tw: 0.86 },
+      { z: 0.10, hw: 0.93, yb: 0.18, yt: 0.79, tw: 0.87 },
+      { z: -0.70, hw: 0.93, yb: 0.18, yt: 0.79, tw: 0.87 },
+      { z: -1.45, hw: 0.94, yb: 0.19, yt: 0.75, tw: 0.88 },
+      { z: -2.02, hw: 0.90, yb: 0.24, yt: 0.69, tw: 0.83 },
+      { z: -2.30, hw: 0.76, yb: 0.34, yt: 0.62, tw: 0.68 },
+    ], { side: flank, top: T.white, cap: T.white }, tint);
+    // ---- glasshouse: a second, narrower loft sitting on the beltline;
+    // glass sides, body-colour roof, glass windshield and rear slope ----
+    const roofSpec = { tile: T.white, tint: kind === 'cop' ? [0.16, 0.16, 0.18] : tint };
     if (kind === 'pickup') {
-      // sporty pickup: same low nose, cab raked forward, open bed behind
-      r.push(); r.translate(0, 0.68, 0.62); r.wedge(W * 0.82, 0.5, 0.8, { tile: T.windshield }, [1, 1, 1]); r.pop(); // raked windshield
-      const cabinMatP = { front: T.carGlass, back: T.carGlass, left: T.cabinSide, right: T.cabinSide, top: T.carGlass, bottom: T.carGlass };
-      r.push(); r.translate(0, 0.94, -0.05); r.box(W * 0.84, 0.44, 1.05, cabinMatP, [1, 1, 1]); r.pop(); // cab glasshouse
-      r.push(); r.translate(0, 1.19, -0.05); r.box(W * 0.88, 0.06, 1.15, paint, tint); r.pop(); // roof
-      const bedTint = tint.map((v) => v * 0.92); // open bed: floor, walls, tailgate
-      r.push(); r.translate(0, 0.62, -1.5); r.box(W * 0.94, 0.08, 1.75, darkM, [0.2, 0.2, 0.22]); r.pop();
-      for (const sx of [-1, 1]) { r.push(); r.translate(sx * (W * 0.47 - 0.045), 0.82, -1.5); r.box(0.09, 0.44, 1.75, paint, bedTint); r.pop(); }
-      r.push(); r.translate(0, 0.82, -2.35); r.box(W * 0.94, 0.44, 0.09, paint, bedTint); r.pop();
+      r.loft([
+        { z: 1.15, hw: 0.80, yb: 0.70, yt: 0.86, tw: 0.74, top: T.windshield },
+        { z: 0.55, hw: 0.79, yb: 0.70, yt: 1.16, tw: 0.70 },
+        { z: -0.05, hw: 0.78, yb: 0.70, yt: 1.20, tw: 0.70 },
+        { z: -0.42, hw: 0.78, yb: 0.70, yt: 1.17, tw: 0.71, top: T.carGlass },
+        { z: -0.64, hw: 0.79, yb: 0.70, yt: 0.82, tw: 0.74 },
+      ], { side: T.cabinSide, top: roofSpec, cap: T.carGlass }, [1, 1, 1]);
+      // open bed: the hull's beltline surface is the bed floor; walls with
+      // rounded top rails and a tailgate close it in
+      const bedTint = tint.map((v) => v * 0.92);
+      for (const sx of [-1, 1]) {
+        r.push(); r.translate(sx * 0.885, 0.82, -1.47); r.box(0.09, 0.5, 1.66, paint, bedTint); r.pop();
+        r.push(); r.translate(sx * 0.885, 1.08, -1.47); r.rotateX(Math.PI / 2); r.cylinder(0.05, 1.66, 8, paint, bedTint); r.pop();
+      }
+      r.push(); r.translate(0, 0.82, -2.28); r.box(1.72, 0.5, 0.09, paint, bedTint); r.pop();
+      r.push(); r.translate(0, 1.08, -2.28); r.rotateZ(Math.PI / 2); r.cylinder(0.05, 1.72, 8, paint, bedTint); r.pop();
     } else {
-      // teardrop glasshouse set well back, mid-engine coupe style
-      r.push(); r.translate(0, 0.7, 0.6); r.wedge(W * 0.8, 0.52, 0.85, { tile: T.windshield }, [1, 1, 1]); r.pop(); // windshield rake
-      const cabinMat = { front: T.carGlass, back: T.carGlass, left: T.cabinSide, right: T.cabinSide, top: T.carGlass, bottom: T.carGlass };
-      r.push(); r.translate(0, 0.96, -0.5); r.box(W * 0.82, 0.44, 1.65, cabinMat, [1, 1, 1]); r.pop(); // cabin glass with interior
-      r.push(); r.translate(0, 1.21, -0.55); r.box(W * 0.86, 0.06, 1.5, paint, kind === 'cop' ? [0.16, 0.16, 0.18] : tint); r.pop(); // roof (black on the interceptor)
-      r.push(); r.translate(0, 0.72, -1.62); r.rotateY(Math.PI); r.wedge(W * 0.8, 0.48, 0.72, glassM, [1, 1, 1]); r.pop(); // rear glass slope
-      r.push(); r.translate(0, 0.66, -1.95); r.box(W * 0.94, 0.16, 0.75, paint, tint); r.pop(); // decklid
+      r.loft([
+        { z: 1.15, hw: 0.80, yb: 0.70, yt: 0.86, tw: 0.74, top: T.windshield },
+        { z: 0.55, hw: 0.79, yb: 0.70, yt: 1.16, tw: 0.70 },
+        { z: -0.05, hw: 0.78, yb: 0.70, yt: 1.23, tw: 0.70 },
+        { z: -0.75, hw: 0.78, yb: 0.70, yt: 1.21, tw: 0.70 },
+        { z: -1.30, hw: 0.79, yb: 0.70, yt: 1.00, tw: 0.73, top: T.carGlass },
+        { z: -1.68, hw: 0.80, yb: 0.70, yt: 0.79, tw: 0.75 },
+      ], { side: T.cabinSide, top: roofSpec, cap: T.carGlass }, [1, 1, 1]);
     }
-    // rear: full-width light bar (flares under braking), diffuser, quad exhausts, plates
-    r.push(); r.translate(0, 0.6, -L / 2 - 0.06); r.box(W * 0.82, 0.08, 0.05, { tile: T.white }, [1.5, 0.3, 0.24], o.brake ? 0.95 : 0.35); r.pop();
-    r.push(); r.translate(0, 0.24, -L / 2 - 0.05); r.box(W * 0.9, 0.24, 0.1, darkM, dark); r.pop(); // diffuser
-    for (const fx of [-0.3, 0, 0.3]) { r.push(); r.translate(fx * W * 0.5, 0.2, -L / 2 - 0.1); r.box(0.05, 0.18, 0.05, darkM, [0.2, 0.2, 0.22]); r.pop(); } // diffuser fins
-    for (const sx of [-1, 1]) for (const ex of [0.48, 0.66]) { r.push(); r.translate(sx * ex, 0.3, -L / 2 - 0.08); r.rotateX(Math.PI / 2); r.cylinder(0.045, 0.14, 7, { tile: T.gunMetal }, [0.7, 0.7, 0.73]); r.pop(); } // quad exhausts
-    r.push(); r.translate(0, 0.42, L / 2 + 0.13); r.plane(0.52, 0.13, T.plate1); r.pop();
-    r.push(); r.translate(0, 0.44, -L / 2 - 0.115); r.rotateY(Math.PI); r.plane(0.52, 0.13, T.plate2); r.pop();
-    r.push(); r.translate(0, 1.28, -1.2); r.box(0.05, 0.09, 0.24, darkM, dark); r.pop(); // shark-fin antenna
+    // ---- wheels: low-profile tires on spoked hubs + flared arch lips ----
+    const wheelAt = (x, z) => {
+      r.push(); r.translate(x, 0.37, z); r.rotateZ(Math.PI / 2); r.rotateY(spin); r.cylinder(0.37, 0.26, 16, { tile: T.tire }, [1, 1, 1], 0, T.hub); r.pop();
+      for (const a of [-0.85, 0.85]) {
+        r.push(); r.translate(x, 0.37, z); r.rotateX(a); r.translate(0, 0.43, 0); r.box(0.08, 0.11, 0.38, paint, tint.map((v) => v * 0.94)); r.pop();
+      }
+    };
+    wheelAt(-0.9, 1.4); wheelAt(0.9, 1.4); wheelAt(-0.9, -1.4); wheelAt(0.9, -1.4);
+    // ---- nose: grille on the chin, LED strips on the slope, intake, plate ----
+    r.push(); r.translate(0, 0.47, 2.365); r.plane(0.7, 0.1, T.grille); r.pop();
+    r.push(); r.translate(0, 0.33, 2.2); r.rotateX(-0.18); r.box(0.95, 0.17, 0.14, darkM, dark); r.pop(); // intake, tucked under the chin
+    r.push(); r.translate(0, 0.12, 2.1); r.box(0.95, 0.06, 0.24, darkM, dark); r.pop(); // splitter, matched to the chin's width
+    for (const sx of [-1, 1]) {
+      r.push(); r.translate(sx * 0.5, 0.585, 2.18); r.rotateY(sx * -0.28); r.rotateX(-0.32); r.box(0.52, 0.06, 0.16, { tile: T.white }, [1.6, 1.55, 1.35], 0.55); r.pop(); // LED headlights
+      r.push(); r.translate(sx * 0.9, 0.6, 0.68); r.box(0.04, 0.05, 0.14, { tile: T.white }, [1.4, 0.9, 0.3], 0.3); r.pop(); // side indicator
+      r.push(); r.translate(sx * 0.88, 0.68, 0.32); r.box(0.03, 0.03, 0.17, darkM, [0.25, 0.25, 0.28]); r.pop(); // front door handle
+      r.push(); r.translate(sx * 0.885, 0.68, -0.62); r.box(0.03, 0.03, 0.17, darkM, [0.25, 0.25, 0.28]); r.pop(); // rear door handle
+      r.push(); r.translate(sx * 0.9, 0.17, -0.1); r.box(0.05, 0.13, 2.2, darkM, dark); r.pop(); // side skirt
+      r.push(); r.translate(sx * 0.8, 1.0, 0.62); r.box(0.16, 0.03, 0.04, paint, tint); r.translate(sx * 0.1, 0.02, 0); r.box(0.05, 0.1, 0.2, paint, tint); r.pop(); // mirror: stalk + head
+    }
+    r.push(); r.translate(0, 0.33, 2.278); r.plane(0.52, 0.13, T.plate1); r.pop();
+    // ---- tail: light bar, diffuser + fins, quad exhausts, plate, fin ----
+    r.push(); r.translate(0, 0.58, -2.315); r.box(1.3, 0.07, 0.05, { tile: T.white }, [1.5, 0.3, 0.24], o.brake ? 0.95 : 0.35); r.pop();
+    r.push(); r.translate(0, 0.25, -2.29); r.box(1.5, 0.2, 0.1, darkM, dark); r.pop(); // diffuser
+    for (const fx of [-0.3, 0, 0.3]) { r.push(); r.translate(fx * 0.75, 0.2, -2.33); r.box(0.05, 0.16, 0.05, darkM, [0.2, 0.2, 0.22]); r.pop(); }
+    for (const sx of [-1, 1]) for (const ex of [0.46, 0.64]) { r.push(); r.translate(sx * ex, 0.32, -2.31); r.rotateX(Math.PI / 2); r.cylinder(0.045, 0.14, 7, { tile: T.gunMetal }, [0.7, 0.7, 0.73]); r.pop(); }
+    r.push(); r.translate(0, 0.43, -2.315); r.rotateY(Math.PI); r.plane(0.52, 0.13, T.plate2); r.pop();
+    if (kind !== 'pickup') { r.push(); r.translate(0, 1.26, -0.55); r.box(0.05, 0.09, 0.24, darkM, dark); r.pop(); } // shark fin
     if (kind === 'taxi') {
-      r.push(); r.translate(0, 1.33, -0.55); r.box(0.55, 0.14, 0.26, { front: T.taxiSign, back: T.taxiSign, left: T.taxiSign, right: T.taxiSign, top: T.white, bottom: T.white }); r.pop(); // sleek roof sign
-      r.push(); r.translate(0, 0.48, -0.2); r.box(W + 0.012, 0.14, L * 0.88, { tile: T.white }, [0.13, 0.13, 0.14]); r.pop(); // checker band base
+      r.push(); r.translate(0, 1.32, -0.15); r.box(0.55, 0.15, 0.26, { front: T.taxiSign, back: T.taxiSign, left: T.taxiSign, right: T.taxiSign, top: T.white, bottom: T.white }); r.pop(); // roof sign
     }
     if (kind === 'stock') {
-      r.push(); r.translate(0, 1.04, -L / 2 + 0.28); r.box(1.6, 0.07, 0.36, { tile: T.clothDark }, [0.14, 0.14, 0.15]); r.pop(); // bigger wing
-      for (const sx of [-1, 1]) r.push(), r.translate(sx * 0.58, 0.84, -L / 2 + 0.28), r.box(0.07, 0.32, 0.07, { tile: T.gunMetal }), r.pop();
-      for (const sx of [-1, 1]) { r.push(); r.translate(sx * (W / 2 + 0.008), 0.55, 0.2); r.rotateY(sx * Math.PI / 2); r.plane(0.78, 0.78, T.roundel); r.pop(); }
-      for (const sx of [-1, 1]) { r.push(); r.translate(sx * (W / 2 + 0.008), 0.53, -1.15); r.rotateY(sx * Math.PI / 2); r.plane(1.9, 0.42, T.sponsor); r.pop(); } // sponsor flank graphics
+      for (const sx of [-1, 1]) { r.push(); r.translate(sx * 0.55, 0.85, -2.02); r.box(0.07, 0.34, 0.07, { tile: T.gunMetal }); r.pop(); }
+      r.push(); r.translate(0, 1.05, -2.08); r.rotateX(0.12); r.box(1.6, 0.06, 0.36, { tile: T.clothDark }, [0.14, 0.14, 0.15]); r.pop(); // bigger wing
+      for (const sx of [-1, 1]) { r.push(); r.translate(sx * 0.9, 0.55, 0.15); r.rotateY(sx * Math.PI / 2); r.plane(0.72, 0.72, T.roundel); r.pop(); }
+      for (const sx of [-1, 1]) { r.push(); r.translate(sx * 0.905, 0.5, -1.05); r.rotateY(sx * Math.PI / 2); r.plane(1.8, 0.4, T.sponsor); r.pop(); } // sponsor flank graphics
     }
     if (kind === 'cop') {
       // supercar interceptor: PBPD livery on the coupe shell, light bar
       // integrated flush into the black roof — no push bar, no sedan bulk
-      for (const sx of [-1, 1]) { r.push(); r.translate(sx * (W / 2 + 0.008), 0.52, -0.2); r.rotateY(sx * Math.PI / 2); r.plane(1.9, 0.46, T.pbpdSide); r.pop(); }
-      r.push(); r.translate(0, 1.26, -0.55); r.box(0.98, 0.05, 0.26, { tile: T.white }, [0.16, 0.16, 0.18]); r.pop(); // integrated light bar base
+      for (const sx of [-1, 1]) { r.push(); r.translate(sx * 0.9, 0.52, -0.1); r.rotateY(sx * Math.PI / 2); r.plane(1.9, 0.44, T.pbpdSide); r.pop(); }
+      r.push(); r.translate(0, 1.25, -0.35); r.box(0.98, 0.05, 0.26, { tile: T.white }, [0.16, 0.16, 0.18]); r.pop(); // light bar base
       const ph = o.lightPhase || 0;
-      r.push(); r.translate(-0.25, 1.28, -0.55); r.box(0.44, 0.06, 0.22, { tile: T.white }, [1.9, 0.3, 0.25], ph % 2 ? 0.95 : 0.05); r.pop();
-      r.push(); r.translate(0.25, 1.28, -0.55); r.box(0.44, 0.06, 0.22, { tile: T.white }, [0.3, 0.45, 1.9], ph % 2 ? 0.05 : 0.95); r.pop();
-      r.push(); r.translate(0, 0.52, -L / 2 - 0.1); r.rotateY(Math.PI); r.plane(1.1, 0.24, T.pbpdSide); r.pop(); // rear PBPD lettering
-      r.push(); r.translate(0, 0.8, -L / 2 + 0.06); r.box(W * 0.72, 0.05, 0.24, darkM, dark); r.pop(); // lip spoiler
+      r.push(); r.translate(-0.25, 1.285, -0.35); r.box(0.44, 0.06, 0.22, { tile: T.white }, [1.9, 0.3, 0.25], ph % 2 ? 0.95 : 0.05); r.pop();
+      r.push(); r.translate(0.25, 1.285, -0.35); r.box(0.44, 0.06, 0.22, { tile: T.white }, [0.3, 0.45, 1.9], ph % 2 ? 0.05 : 0.95); r.pop();
+      r.push(); r.translate(0, 0.5, -2.315); r.rotateY(Math.PI); r.plane(1.1, 0.22, T.pbpdSide); r.pop(); // rear PBPD lettering
+      r.push(); r.translate(0, 0.68, -2.2); r.box(1.4, 0.05, 0.24, darkM, dark); r.pop(); // lip spoiler
     }
     if (kind === 'sedan' || kind === 'taxi') {
-      r.push(); r.translate(0, 0.8, -L / 2 + 0.06); r.box(W * 0.72, 0.05, 0.24, paint, tint); r.pop(); // lip spoiler
+      r.push(); r.translate(0, 0.68, -2.2); r.box(1.4, 0.05, 0.24, paint, tint); r.pop(); // lip spoiler
     }
   }
 }
@@ -384,12 +438,12 @@ export function drawGhost(r, T, t) {
   const bob = Math.sin(t * 1.6) * 0.06;
   r.push(); r.translate(0, bob, 0);
   r.push(); r.translate(0, 1.02, 0); r.cylinder(0.52, 1.15, 14, white, [0.96, 0.97, 1.0], 0, T.white); r.pop(); // body
-  r.push(); r.translate(0, 1.62, 0); r.scale(1, 0.82, 1); r.cylinder(0.52, 0.5, 14, white, [0.96, 0.97, 1.0], 0, T.white); r.pop(); // domed head
+  r.push(); r.translate(0, 1.66, 0); r.ball(0.52, 14, 9, T.white, [0.96, 0.97, 1.0], 0, 0.88); r.pop(); // domed head
   for (let i = 0; i < 5; i++) { // wavy hem
     r.push(); r.translate(Math.sin(i / 4 * Math.PI * 2) * 0.4, 0.42, Math.cos(i / 4 * Math.PI * 2) * 0.4); r.box(0.2, 0.24, 0.2, white, [0.94, 0.95, 0.99]); r.pop();
   }
   for (const sx of [-1, 1]) { // eyes
-    r.push(); r.translate(sx * 0.17, 1.66, 0.47); r.box(0.09, 0.15, 0.05, { tile: T.white }, [0.08, 0.08, 0.12]); r.pop();
+    r.push(); r.translate(sx * 0.17, 1.66, 0.51); r.box(0.09, 0.15, 0.05, { tile: T.white }, [0.08, 0.08, 0.12]); r.pop();
   }
   r.push(); r.translate(0, 1.47, 0.5); r.box(0.1, 0.045, 0.04, { tile: T.white }, [0.15, 0.13, 0.16]); r.pop(); // small smile
   for (const sx of [-1, 1]) { // arms reaching forward, holding the coin
