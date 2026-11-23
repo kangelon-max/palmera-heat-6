@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Palmera Heat IV — an original Palmera Bay crime game</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0e14; }
+  #game, #hud { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #game { touch-action: none; }
+  #hud { pointer-events: none; }
+  /* Read aloud, never shown: the status line screen readers announce. */
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Palmera Heat IV: a true-3D open-world crime game set in the invented coastal city of Palmera Bay — drive, swim, take jobs from Marla Voss, dodge the PBPD, and beware the shoe shop that is not a shoe shop"></canvas>
+<canvas id="hud" aria-hidden="true"></canvas>
+<p id="status" role="status" aria-live="polite"></p>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
