@@ -7,6 +7,7 @@ import { buildTextures } from './textures.js';
 import { drawPerson, drawVehicle, drawWeapon, drawGhost, drawSahur, drawHelicopter, pedAppearance, HERO_APPEARANCE } from './models.js';
 import { WORLD, buildWorld, drawWheel, districtAt, streetAt, waterDepth, collide } from './world.js';
 import { HUD } from './hud.js';
+import { initTouch } from './touch.js';
 import { AudioEngine, STATIONS } from './audio.js';
 import { rngStream } from './random.js';
 import { WEAPON_ORDER } from './weaponart.js';
@@ -422,6 +423,22 @@ function handlePauseClick(p) {
       showToast('Waypoint set', 1.6);
     }
   }
+}
+// Touch taps route here: the same branches a mousedown takes on the title,
+// pause and wheel screens, minus the pointer-lock step (touch has no lock —
+// the touch layer feeds look deltas and the fire button directly instead).
+function touchUiTap(cx, cy) {
+  const p = canvasPoint({ clientX: cx, clientY: cy });
+  if (G.mode === 'title') {
+    const id = hud.hit(p.x, p.y);
+    if (id === 'new') startGame(false);
+    else if (id === 'continue') startGame(true);
+    return;
+  }
+  if (G.mode !== 'play') return;
+  audio.start();
+  if (paused) { handlePauseClick(p); return; }
+  if (wheelOpen) { handleWheelClick(p); return; }
 }
 function handleWheelClick(p) {
   const dx = p.x - hudCanvas.width / 2, dy = p.y - hudCanvas.height / 2;
@@ -1261,6 +1278,8 @@ function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, Math.max(0.001, (now - lastNow) / 1000 || 0.016));
   lastNow = now;
+  hud.clear(); // once per frame, before any HUD draw in every mode (title / play / shot)
+
   if (G.mode === 'shot') {
     render(); // every frame: a frozen canvas can be captured mid-clear (black) by screenshot tooling
     const S = hudState();
@@ -1284,3 +1303,15 @@ function frame(now) {
   if (paused) hud.drawPause(S);
 }
 requestAnimationFrame(frame);
+
+// Touch overlay (no-op on desktop): drives the same keys / look deltas /
+// mouse buttons the desktop input fills, so the sim cannot tell them apart.
+initTouch({
+  keys,
+  look(dx, dy) { mouseDX += dx; mouseDY += dy; },
+  setFire(d) { mouseDownL = d; },
+  setAim(d) { mouseDownR = d; },
+  tap(cx, cy) { touchUiTap(cx, cy); },
+  startAudio() { audio.start(); },
+  state() { return { mode: G.mode, paused, wheelOpen, driving: !!G.hero.car }; },
+});

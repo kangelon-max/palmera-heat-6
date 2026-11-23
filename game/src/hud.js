@@ -115,6 +115,15 @@ export class HUD {
     return null;
   }
 
+  /** Erase the whole overlay. The main loop calls this exactly once per
+   *  frame, before the frame's first draw: without it, translucent panels
+   *  and veils stack across frames and the title art ghosts over gameplay
+   *  forever. Wheel and pause draw AFTER the HUD in the same frame and
+   *  overlay it, so they must never clear on their own. */
+  clear() {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+  }
+
   drawTitle(S) {
     const ctx = this.ctx, W = this.canvas.width, H = this.canvas.height;
     this.buttons = [];
@@ -127,7 +136,7 @@ export class HUD {
     const bw = 230, bx = W / 2 - bw / 2;
     if (S.hasSave) this.button('continue', bx, H * 0.8, bw, 44, 'CONTINUE', true);
     this.button('new', bx, H * 0.8 + (S.hasSave ? 54 : 0), bw, 44, 'NEW GAME', !S.hasSave);
-    txt(ctx, 'WASD drive / walk · Mouse look · LMB fire · Tab wheel · F enter car · M map', W / 2, H - 16, '12.5px sans-serif', 'rgba(240,238,230,0.6)', 'center');
+    txt(ctx, window.__palmeraTouch ? 'Left thumb move · Right thumb look · FIRE shoots · WHEEL picks a gun' : 'WASD drive / walk · Mouse look · LMB fire · Tab wheel · F enter car · M map', W / 2, H - 16, '12.5px sans-serif', 'rgba(240,238,230,0.6)', 'center');
   }
 
   drawMinimap(S) {
@@ -271,7 +280,7 @@ export class HUD {
       });
     });
     txt(ctx, 'WEAPON WHEEL', cx, cy + 5, 'bold 15px sans-serif', '#f2f0ea', 'center');
-    txt(ctx, 'click or 1-5 to select · Tab to close', cx, cy + 24, '11.5px sans-serif', 'rgba(240,238,230,0.65)', 'center');
+    txt(ctx, window.__palmeraTouch ? 'tap a weapon to select · tap the centre to close' : 'click or 1-5 to select · Tab to close', cx, cy + 24, '11.5px sans-serif', 'rgba(240,238,230,0.65)', 'center');
   }
 
   drawPause(S) {
